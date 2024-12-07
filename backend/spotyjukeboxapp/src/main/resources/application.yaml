@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: spotyjukeboxapp
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        generate_statistics: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+server:
+  port: 8080
+
+
+To enable all management endpoints in Spring Boot Actuator via the application.yaml file, you can use the following configuration:
+
+  yaml
+  Copy code
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: "always" # Optional: Show detailed health information
