@@ -1,16 +1,17 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
-import { createSpotifyClient } from '@/services/spotifyClientBase';
 import { AuthContext } from '@/context/AuthProvider';
+import PlaylistService from '@/services/playlistService';
+import { Playlist } from '@/models/PlayslistModels';
 
 const PostLoginPage = () => {
     const { user, signinRedirect } = useContext(AuthContext);
     // Initialize the client with your Spotify API access token
-    const spotify = createSpotifyClient(user.access_token);
-    const [playlists, setPlaylists] = useState([]);
+    const playlistService = PlaylistService(user.access_token);
+    const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
     useEffect(() => {
-        spotify.getUserPlaylists().then((data) => setPlaylists(data.items));
+        playlistService.getUserPlaylists().then((data) => setPlaylists(data.items));
     }, [user]);
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4">
@@ -20,7 +21,7 @@ const PostLoginPage = () => {
                     <div className="flex justify-between items-center">
                         <div>
                             <h1 className="text-4xl font-bold text-gray-800">Protected Page</h1>
-                            <p className="mt-2 text-gray-600">Welcome, {user?.email || 'User'}</p>
+                            <p className="mt-2 text-gray-600">Welcome, {user.profile.family_name || 'User'}</p>
                         </div>
                         <button
                             onClick={signinRedirect}
@@ -48,7 +49,8 @@ const PostLoginPage = () => {
                             <h2 className="text-xl font-semibold text-gray-800 mb-2">
                                 {playlist?.name}
                             </h2>
-                            {playlist?.description && (
+                            {playlist.owner.display_name}
+                            {playlist.description && (
                                 <p className="text-gray-600">
                                     {playlist?.description}
                                 </p>
