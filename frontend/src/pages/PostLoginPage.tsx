@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { AuthContext } from '@/context/AuthProvider';
-import PlaylistService from '@/services/playlistService';
+import PlaylistService from '@/services/PlaylistService';
 import { Playlist } from '@/models/PlayslistModels';
 
 const PostLoginPage = () => {
