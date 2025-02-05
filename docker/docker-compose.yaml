@@ -4,9 +4,9 @@ services :
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: user1
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: tododb
+      POSTGRES_USER: spotyjukebox-user
+      POSTGRES_PASSWORD: spotyjukebox-pass
+      POSTGRES_DB: spotyjukebox
     volumes:
       - db-data:/var/lib/postgresql/data
     networks:
