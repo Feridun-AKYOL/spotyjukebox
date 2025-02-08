@@ -17,7 +17,6 @@ const CallbackPage: React.FC = () => {
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
-  console.log(JSON.stringify(user));
   if (!user) {
     return <Navigate to="/login" />;
   }

@@ -1,11 +1,12 @@
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useEffect, useState } from 'react';
 import { User } from 'oidc-client-ts';
 import { userManager } from '@/config/oidc.config';
 
 interface AuthContextProps {
-  user: User;
+  user: User | null;
   signinRedirect: () => void;
   signoutRedirect: () => void;
+  signoutCallback: () => void;
 }
 
 type AuthProviderProps = {
@@ -45,9 +46,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signinRedirect = () => userManager.signinRedirect();
   const signoutRedirect = () => userManager.signoutRedirect();
+  const signoutCallback = () => userManager.signoutCallback();
 
   return (
-    <AuthContext.Provider value={{ user, signinRedirect, signoutRedirect }}>
+    <AuthContext.Provider value={{ user, signinRedirect, signoutRedirect, signoutCallback }}>
       {loading ? <div>Loading...</div> : children} {/* Delay until ready */}
     </AuthContext.Provider>
   );

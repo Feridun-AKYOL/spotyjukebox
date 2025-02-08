@@ -1,16 +1,17 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { AuthContext } from '@/context/AuthProvider';
-import PlaylistService from '@/services/playlistService';
+import PlaylistService from '@/services/PlaylistService';
 import { Playlist } from '@/models/PlayslistModels';
 
 const PostLoginPage = () => {
-    const { user, signinRedirect } = useContext(AuthContext);
+    const { user, signoutCallback } = useContext(AuthContext);
     // Initialize the client with your Spotify API access token
-    const playlistService = PlaylistService(user.access_token);
+    const playlistService = user?.access_token ? PlaylistService(user.access_token) : null;
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
     useEffect(() => {
+        if (!playlistService) return;
         playlistService.getUserPlaylists().then((data) => setPlaylists(data.items));
     }, [user]);
     return (
@@ -21,10 +22,10 @@ const PostLoginPage = () => {
                     <div className="flex justify-between items-center">
                         <div>
                             <h1 className="text-4xl font-bold text-gray-800">Protected Page</h1>
-                            <p className="mt-2 text-gray-600">Welcome, {user.profile.family_name || 'User'}</p>
+                            <p className="mt-2 text-gray-600">Welcome, {user?.profile.family_name || 'User'}</p>
                         </div>
                         <button
-                            onClick={signinRedirect}
+                            onClick={signoutCallback}
                             className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                         >
                             <LogOut size={20} />
@@ -35,6 +36,14 @@ const PostLoginPage = () => {
                     <div className="mt-4 p-4 bg-gray-50 rounded-md">
                         <p className="text-sm text-gray-500 font-mono break-all">
                             Access Token: {user?.access_token}
+                            <br />
+                            Refresh Token: {user?.refresh_token}
+                            <br />
+                            Expires In: {user?.expires_in}
+                            <br />
+                            Scopes: {user?.scope}
+                            <br />
+                            id token : {user?.id_token}
                         </p>
                     </div>
                 </div>
