@@ -4,5 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 
 import java.util.Set;
 
-public record TokenPersistingRequest(@NotBlank String userId, @NotBlank String accessToken, @NotBlank String refreshToken, Set<String> scopes) {
+public record TokenPersistingRequest(
+        @NotBlank String userId,
+        @NotBlank String accessToken,
+        @NotBlank String refreshToken,
+        Set<String> scopes
+) {
 }
