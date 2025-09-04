@@ -3,13 +3,20 @@ package org.bithub.mapper;
 import org.bithub.model.TokenPersistingRequest;
 import org.bithub.persistence.UserInfo;
 
+import java.util.Set;
+
 public class UserMapper {
 
-    public static UserInfo map(TokenPersistingRequest request) {
-        return UserInfo.builder()
-                .userId(request.userId())
-                .accessToken(request.accessToken())
-                .refreshToken(request.refreshToken())
-                .build();
+    /**
+     * Var olan entity'yi request'e göre günceller.
+     * Boş/null değerlerde mevcut değeri korumak istiyorsan burada kontrol ekleyebilirsin.
+     */
+    public static void updateEntity(UserInfo entity, TokenPersistingRequest request) {
+        entity.setAccessToken(request.accessToken());
+        entity.setRefreshToken(request.refreshToken());
+
+        // scopes null gelebilir; null ise boş set atayalım ki NPE olmasın
+        Set<String> scopes = request.scopes();
+        entity.setScopes(scopes != null ? scopes : Set.of());
     }
 }
