@@ -1,4 +1,8 @@
 package org.bithub.model;
 
-public record TokenPersistingRequest(String userId, String accessToken, String refreshToken) {
+import jakarta.validation.constraints.NotBlank;
+
+import java.util.Set;
+
+public record TokenPersistingRequest(@NotBlank String userId, @NotBlank String accessToken, @NotBlank String refreshToken, Set<String> scopes) {
 }
