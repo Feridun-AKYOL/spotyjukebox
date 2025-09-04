@@ -34,3 +34,7 @@ management:
   endpoint:
     health:
       show-details: "always"
+
+spotify:
+  api:
+    url: https://api.spotify.com/v1
