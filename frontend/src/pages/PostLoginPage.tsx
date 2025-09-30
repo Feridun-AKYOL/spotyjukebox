@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { AuthContext } from '@/context/AuthProvider';
 import PlaylistService from '@/services/PlaylistService';
@@ -13,7 +13,7 @@ const PostLoginPage = () => {
     useEffect(() => {
         if (!playlistService) return;
         playlistService.getUserPlaylists().then((data) => setPlaylists(data.items));
-    }, [user]);
+    }, [playlistService, user]);
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4">
             <div className="max-w-4xl mx-auto">

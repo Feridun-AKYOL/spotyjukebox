@@ -25,7 +25,7 @@ export const createSpotifyClient = (accessToken: string) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...restOptions,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(body) : undefined
     });
 
     if (!response.ok) {
