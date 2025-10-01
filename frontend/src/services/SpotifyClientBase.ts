@@ -2,19 +2,7 @@ const BASE_URL = "https://api.spotify.com/v1";
 
 type FetchOptions = Omit<RequestInit, "body"> & { body?: Record<string, any> | null };
 
-/**
- * Creates a Spotify API client with a functional approach.
- * @param accessToken The Spotify API access token.
- * @returns A collection of Spotify API methods.
- */
 export const createSpotifyClient = (accessToken: string) => {
-    
-  /**
-   * Perform a fetch request with authentication and optional body.
-   * @param endpoint The API endpoint (relative to base URL).
-   * @param options Additional options for the request.
-   * @returns The parsed JSON response.
-   */
   const fetchSpotify = async (endpoint: string, options: FetchOptions = {}) => {
     const { body, ...restOptions } = options;
     const headers: HeadersInit = {
@@ -25,15 +13,41 @@ export const createSpotifyClient = (accessToken: string) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...restOptions,
       headers,
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Spotify API error: ${error.error?.message || response.statusText}`);
+    // special handling: rate limiting (429)
+    if (response.status === 429) {
+      const retryAfter = parseInt(response.headers.get("Retry-After") || "1", 10);
+      console.warn(
+        `Spotify API rate limit hit. Retrying after ${retryAfter} seconds...`
+      );
+      await new Promise((res) => setTimeout(res, retryAfter * 1000));
+      return fetchSpotify(endpoint, options); // retry once
     }
 
-    return response.json();
+    // ✔️ always read the text first
+    const raw = await response.text();
+
+    if (!response.ok) {
+      let errorMessage: string;
+      try {
+        const errJson = JSON.parse(raw);
+        errorMessage = errJson.error?.message || JSON.stringify(errJson);
+      } catch {
+        errorMessage = raw || response.statusText;
+      }
+      throw new Error(`Spotify API error (${response.status}): ${errorMessage}`);
+    }
+
+    // ✔️ if succeed
+    if (response.status === 204 ||!raw) return null; // empty body
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw; // if not json
+    }
   };
+
   return fetchSpotify;
 };
