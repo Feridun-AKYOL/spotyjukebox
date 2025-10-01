@@ -1,12 +1,12 @@
-import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
+import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 
 const oidcConfig = {
-  authority: 'https://accounts.spotify.com',
-  client_id: '308c73a474314c9bb28fa34f5c63e6e5',
-  redirect_uri: 'http://localhost:5173/callback',
-  post_logout_redirect_uri: 'http://localhost:5173/',
-  response_type: 'code',
-  scope: 'playlist-read-private',
+  authority: "https://accounts.spotify.com",
+  client_id: "3ae1e78b356a4627a6e8238bd2f00b31",
+  redirect_uri: "http://127.0.0.1:5173/callback",
+  post_logout_redirect_uri: "http://127.0.0.1:5173/",
+  response_type: "code",
+  scope: "user-read-email user-read-private playlist-read-private",
   userStore: new WebStorageStateStore({ store: window.localStorage }),
 };
 

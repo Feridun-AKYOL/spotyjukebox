@@ -4,6 +4,7 @@ import { AuthProvider, AuthContext } from '@/context/AuthProvider';
 import { userManager } from '@/config/oidc.config';
 import LoginPage from '@/pages/LoginPage';
 import PostLoginPage from '@/pages/PostLoginPage';
+import UserInfoPage from './pages/UserInfoPage';
 
 const CallbackPage: React.FC = () => {
   useEffect(() => {
@@ -17,7 +18,6 @@ const CallbackPage: React.FC = () => {
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
-  console.log(JSON.stringify(user));
   if (!user) {
     return <Navigate to="/login" />;
   }
@@ -31,6 +31,14 @@ export const RoutesProvider: React.FC = () => {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />
+          <Route 
+          path='/userinfo'
+          element={
+            <ProtectedRoute>
+              <UserInfoPage></UserInfoPage>
+            </ProtectedRoute>
+          }
+          />
           <Route
             path="/main"
             element={
