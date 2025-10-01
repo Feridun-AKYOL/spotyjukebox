@@ -13,7 +13,10 @@ import java.util.Set;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "user_info")
+@Table(
+        name = "user_info",
+        indexes = @Index(name = "ux_user_info_user_id", columnList = "user_id", unique = true)
+)
 @Builder
 public class UserInfo {
     @Id
@@ -22,6 +25,10 @@ public class UserInfo {
 
     @Column(name = "user_id", nullable = false)
     private String userId;
+
+    private String email;
+
+    private String displayName;
 
     @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
     private String accessToken;

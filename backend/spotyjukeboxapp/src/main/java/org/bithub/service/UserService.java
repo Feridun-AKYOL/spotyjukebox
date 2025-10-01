@@ -5,6 +5,9 @@ import org.bithub.model.TokenPersistingRequest;
 import org.bithub.persistence.UserInfo;
 import org.bithub.persistence.UserInfoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class UserService {
@@ -15,12 +18,45 @@ public class UserService {
         this.userInfoRepository = userInfoRepository;
     }
 
-    public void persist(TokenPersistingRequest request) {
-        var entity = UserMapper.map(request);
-        userInfoRepository.save(entity);
+    /**
+     * Backward compatible: mevcut controller'ın çağırdığı metot.
+     * Artık idempotent olacak şekilde persistOrUpdate'e yönlendirir.
+     */
+    @Transactional
+    public UserInfo persist(TokenPersistingRequest request) {
+        return persistOrUpdate(request);
     }
 
-    public UserInfo get(String userId) {
-        return userInfoRepository.getUserInfoByUserId(userId);
+    /**
+     * Idempotent kayıt/güncelleme:
+     * - userId mevcutsa: token/scopes güncellenir
+     * - yoksa: yeni kayıt oluşturulur
+     */
+    @Transactional
+    public UserInfo persistOrUpdate(TokenPersistingRequest request) {
+        UserInfo entity = userInfoRepository.findByEmail(request.email())
+                .orElseGet(() -> UserInfo.builder()
+                        .userId(request.userId())
+                        .email(request.email())
+                        .build());
+
+        // mapper yalnızca değişen alanları günceller
+        UserMapper.updateEntity(entity, request);
+
+        return userInfoRepository.save(entity);
     }
+
+    public UserInfo getById(String userId) {
+        return userInfoRepository.findByUserId(userId).orElse(null);
+    }
+
+    public UserInfo getByEmail(String email) {
+        return userInfoRepository.findByEmail(email).orElse(null);
+    }
+
+    public List<UserInfo> findAll() {
+        return userInfoRepository.findAll();
+    }
+
+
 }

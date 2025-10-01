@@ -1,5 +1,5 @@
 import { Playlist, SpotifyApiResponse } from "@/models/PlayslistModels";
-import { createSpotifyClient } from "./spotifyClientBase";
+import { createSpotifyClient } from "./SpotifyClientBase";
 
 
 const PlaylistService = (token: string) => {
