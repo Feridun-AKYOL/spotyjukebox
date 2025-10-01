@@ -12,8 +12,12 @@ public class UserMapper {
      * Boş/null değerlerde mevcut değeri korumak istiyorsan burada kontrol ekleyebilirsin.
      */
     public static void updateEntity(UserInfo entity, TokenPersistingRequest request) {
+        entity.setUserId(request.userId());
         entity.setAccessToken(request.accessToken());
         entity.setRefreshToken(request.refreshToken());
+
+        entity.setEmail(request.email());
+        entity.setDisplayName(request.displayName());
 
         // scopes null gelebilir; null ise boş set atayalım ki NPE olmasın
         Set<String> scopes = request.scopes();

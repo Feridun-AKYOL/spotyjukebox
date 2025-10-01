@@ -7,6 +7,8 @@ import org.bithub.persistence.UserInfoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class UserService {
 
@@ -32,9 +34,10 @@ public class UserService {
      */
     @Transactional
     public UserInfo persistOrUpdate(TokenPersistingRequest request) {
-        UserInfo entity = userInfoRepository.findByUserId(request.userId())
+        UserInfo entity = userInfoRepository.findByEmail(request.email())
                 .orElseGet(() -> UserInfo.builder()
                         .userId(request.userId())
+                        .email(request.email())
                         .build());
 
         // mapper yalnızca değişen alanları günceller
@@ -43,7 +46,17 @@ public class UserService {
         return userInfoRepository.save(entity);
     }
 
-    public UserInfo get(String userId) {
+    public UserInfo getById(String userId) {
         return userInfoRepository.findByUserId(userId).orElse(null);
     }
+
+    public UserInfo getByEmail(String email) {
+        return userInfoRepository.findByEmail(email).orElse(null);
+    }
+
+    public List<UserInfo> findAll() {
+        return userInfoRepository.findAll();
+    }
+
+
 }

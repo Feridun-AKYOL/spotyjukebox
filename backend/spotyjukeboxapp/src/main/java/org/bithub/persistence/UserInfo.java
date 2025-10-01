@@ -26,6 +26,10 @@ public class UserInfo {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
+    private String email;
+
+    private String displayName;
+
     @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
     private String accessToken;
 

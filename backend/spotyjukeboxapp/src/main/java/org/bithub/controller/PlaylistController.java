@@ -12,7 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:3000") // Adjust this according to your frontend URL
+@CrossOrigin(origins = "http://127.0.0.1:3000") // Adjust this according to your frontend URL
 public class PlaylistController {
 
     private final SpotifyService spotifyService;
