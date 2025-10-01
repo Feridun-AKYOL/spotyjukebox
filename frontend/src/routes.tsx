@@ -5,6 +5,7 @@ import { userManager } from '@/config/oidc.config';
 import LoginPage from '@/pages/LoginPage';
 import PostLoginPage from '@/pages/PostLoginPage';
 import UserInfoPage from './pages/UserInfoPage';
+import PlaylistPage from './pages/PlayListPage';
 
 const CallbackPage: React.FC = () => {
   useEffect(() => {
@@ -36,6 +37,14 @@ export const RoutesProvider: React.FC = () => {
           element={
             <ProtectedRoute>
               <UserInfoPage></UserInfoPage>
+            </ProtectedRoute>
+          }
+          />
+          <Route 
+          path='/playlists'
+          element={
+            <ProtectedRoute>
+              <PlaylistPage></PlaylistPage>
             </ProtectedRoute>
           }
           />
