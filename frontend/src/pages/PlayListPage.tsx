@@ -2,12 +2,14 @@ import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "@/context/AuthProvider";
 import PlaylistService from "@/services/PlaylistService";
 import { Playlist } from "@/models/PlayslistModels";
+import { useNavigate } from "react-router-dom";
 
 export default function PlaylistPage() {
   const { user } = useContext(AuthContext);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Create Playlist service if token exists
   const playlistService = user?.access_token
@@ -24,6 +26,7 @@ export default function PlaylistPage() {
 
   const handleSelect = (id: string) => {
     setSelected(id);
+    navigate(`/playlist/${id}`)
     console.log("Selected playlist:", id);
     // ileride: backend’e gönder → jukebox base playlist olarak kaydet
   };

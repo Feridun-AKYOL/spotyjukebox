@@ -2,7 +2,7 @@ import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 
 const oidcConfig = {
   authority: "https://accounts.spotify.com",
-  client_id: "3ae1e78b356a4627a6e8238bd2f00b31",
+  client_id: "c2933eab437848ec92830ab22e560856",
   redirect_uri: "http://127.0.0.1:5173/callback",
   post_logout_redirect_uri: "http://127.0.0.1:5173/",
   response_type: "code",

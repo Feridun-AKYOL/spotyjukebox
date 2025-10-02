@@ -6,6 +6,7 @@ import LoginPage from '@/pages/LoginPage';
 import PostLoginPage from '@/pages/PostLoginPage';
 import UserInfoPage from './pages/UserInfoPage';
 import PlaylistPage from './pages/PlayListPage';
+import PlaylistDetailPage from './pages/PlaylistDetailPage';
 
 const CallbackPage: React.FC = () => {
   useEffect(() => {
@@ -45,6 +46,14 @@ export const RoutesProvider: React.FC = () => {
           element={
             <ProtectedRoute>
               <PlaylistPage></PlaylistPage>
+            </ProtectedRoute>
+          }
+          />
+          <Route 
+          path='/playlist/:id'
+          element={
+            <ProtectedRoute>
+              <PlaylistDetailPage></PlaylistDetailPage>
             </ProtectedRoute>
           }
           />
