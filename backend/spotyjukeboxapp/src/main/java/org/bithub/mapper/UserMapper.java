@@ -1,7 +1,7 @@
 package org.bithub.mapper;
 
 import org.bithub.model.TokenPersistingRequest;
-import org.bithub.persistence.UserInfo;
+import org.bithub.model.UserInfo;
 
 import java.util.Set;
 

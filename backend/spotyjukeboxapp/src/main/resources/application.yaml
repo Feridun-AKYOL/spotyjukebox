@@ -36,5 +36,8 @@ management:
       show-details: "always"
 
 spotify:
+  client-id: ${SPOTIFY_CLIENT_ID}
+  client-secret: ${SPOTIFY_CLIENT_SECRET}
+  redirect-uri: ${SPOTIFY_REDIRECT_URI}
   api:
     url: https://api.spotify.com/v1

@@ -1,4 +1,4 @@
-package org.bithub.persistence;
+package org.bithub.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -41,6 +41,9 @@ public class UserInfo {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "expires_in", nullable = false)
+    private Long expiresIn;
 
     @ElementCollection
     @CollectionTable(

@@ -1,5 +1,6 @@
 package org.bithub.persistence;
 
+import org.bithub.model.UserInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

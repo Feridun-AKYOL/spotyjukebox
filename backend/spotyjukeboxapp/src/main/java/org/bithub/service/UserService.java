@@ -2,7 +2,7 @@ package org.bithub.service;
 
 import org.bithub.mapper.UserMapper;
 import org.bithub.model.TokenPersistingRequest;
-import org.bithub.persistence.UserInfo;
+import org.bithub.model.UserInfo;
 import org.bithub.persistence.UserInfoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +56,14 @@ public class UserService {
 
     public List<UserInfo> findAll() {
         return userInfoRepository.findAll();
+    }
+
+    public UserInfo get(String userId) {
+        return userInfoRepository.findByUserId(userId).orElse(null);
+    }
+
+    public UserInfo save(UserInfo user) {
+        return userInfoRepository.save(user);
     }
 
 

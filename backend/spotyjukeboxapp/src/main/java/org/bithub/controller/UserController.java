@@ -2,7 +2,7 @@ package org.bithub.controller;
 
 import jakarta.validation.Valid;
 import org.bithub.model.TokenPersistingRequest;
-import org.bithub.persistence.UserInfo;
+import org.bithub.model.UserInfo;
 import org.bithub.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
