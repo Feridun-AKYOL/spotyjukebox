@@ -38,9 +38,9 @@ public class SpotifyAuthController {
     @PostMapping("/callback")
     public ResponseEntity<?> handleSpotifyCallback(@RequestBody Map<String, String> body) {
         String code = body.get("code");
-        String userId = body.get("userId");
 
-        if (code == null || code.isBlank()) {
+
+        if (code == null) {
             return ResponseEntity.badRequest().body("Missing authorization code");
         }
 
@@ -119,6 +119,7 @@ public class SpotifyAuthController {
             return ResponseEntity.ok(Map.of(
                     "status", "ok",
                     "userId", spotifyUserId,
+                    "displayName", displayName,
                     "accessToken", accessToken,
                     "accessTokenSaved", true
             ));
@@ -142,6 +143,20 @@ public class SpotifyAuthController {
                 "&scope=" + scopes +
                 "&show_dialog=true";
         return ResponseEntity.status(302).header("Location", authorizeUrl).build();
+    }
+    @GetMapping("/me/{spotifyUserId}")
+    public ResponseEntity<?> getUser(@PathVariable String spotifyUserId) {
+        var user = userService.get(spotifyUserId);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("exists", false));
+        }
+        return ResponseEntity.ok(Map.of(
+                "exists", true,
+                "userId", user.getUserId(),
+                "displayName", user.getDisplayName(),
+                "email", user.getEmail()
+        ));
     }
 
 }

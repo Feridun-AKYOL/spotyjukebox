@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "@/context/AuthProvider";
-import PlaylistService from "@/services/PlaylistService";
+import axios from "axios";
 import { Playlist } from "@/models/PlayslistModels";
 import { useNavigate } from "react-router-dom";
 
@@ -11,24 +11,24 @@ export default function PlaylistPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Create Playlist service if token exists
-  const playlistService = user?.access_token
-    ? PlaylistService(user.access_token)
-    : null;
-
   useEffect(() => {
-    if (!playlistService) return;
-    playlistService
-      .getUserPlaylists(20, 0)
-      .then((res) => setPlaylists(res.items))
-      .catch((err) => setError(err.message));
-  }, [playlistService]);
+    if (!user?.id) return;
+
+    axios
+      .get(`http://localhost:8080/api/playlists/${user.id}`)
+      .then((res) => {
+        console.log("🎵 Spotify playlists:", res.data);
+        setPlaylists(res.data.items || []);
+      })
+      .catch((err) => {
+        console.error("❌ Playlist fetch error:", err);
+        setError("Could not load playlists");
+      });
+  }, [user?.id]);
 
   const handleSelect = (id: string) => {
     setSelected(id);
-    navigate(`/playlist/${id}`)
-    console.log("Selected playlist:", id);
-    // ileride: backend’e gönder → jukebox base playlist olarak kaydet
+    navigate(`/playlist/${id}`);
   };
 
   return (
@@ -40,7 +40,7 @@ export default function PlaylistPage() {
 
         {error && (
           <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
-            Error: {error}
+            {error}
           </div>
         )}
 
@@ -48,12 +48,12 @@ export default function PlaylistPage() {
           {playlists.map((playlist) => (
             <div
               key={playlist.id}
+              onClick={() => handleSelect(playlist.id)}
               className={`cursor-pointer rounded-xl shadow-md overflow-hidden border-2 transition ${
                 selected === playlist.id
                   ? "border-indigo-500 ring-2 ring-indigo-300"
                   : "border-transparent"
               }`}
-              onClick={() => handleSelect(playlist.id)}
             >
               {playlist.images?.[0] ? (
                 <img
@@ -71,10 +71,10 @@ export default function PlaylistPage() {
                   {playlist.name}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {playlist.tracks.total} tracks
+                  {playlist.tracks?.total} tracks
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  by {playlist.owner.display_name}
+                  by {playlist.owner?.display_name}
                 </p>
               </div>
             </div>
@@ -84,14 +84,6 @@ export default function PlaylistPage() {
         {(!playlists || playlists.length === 0) && !error && (
           <div className="text-center text-gray-500 mt-12">
             No playlists found.
-          </div>
-        )}
-
-        {selected && (
-          <div className="mt-8 text-center">
-            <p className="text-indigo-700 font-medium">
-              Selected Playlist ID: {selected}
-            </p>
           </div>
         )}
       </div>
