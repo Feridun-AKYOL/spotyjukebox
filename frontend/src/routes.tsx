@@ -1,22 +1,12 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from '@/context/AuthProvider';
-import { userManager } from '@/config/oidc.config';
 import LoginPage from '@/pages/LoginPage';
 import PostLoginPage from '@/pages/PostLoginPage';
 import UserInfoPage from './pages/UserInfoPage';
 import PlaylistPage from './pages/PlayListPage';
 import PlaylistDetailPage from './pages/PlaylistDetailPage';
-
-const CallbackPage: React.FC = () => {
-  useEffect(() => {
-    userManager.signinRedirectCallback().then(() => {
-      window.location.href = '/main';
-    });
-  }, []);
-
-  return <div>Loading...</div>;
-};
+import SpotifyCallbackPage from './pages/SpotifyCallbackPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
@@ -32,7 +22,7 @@ export const RoutesProvider: React.FC = () => {
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/callback" element={<CallbackPage />} />
+          <Route path="/callback" element={<SpotifyCallbackPage />} />
           <Route 
           path='/userinfo'
           element={
@@ -67,7 +57,10 @@ export const RoutesProvider: React.FC = () => {
           />
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
+
       </Router>
     </AuthProvider>
+
+    
   )
 };

@@ -100,6 +100,16 @@ const PostLoginPage = () => {
       });
   }, [user]);
 
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI; // = http://127.0.0.1:5173/spotify-callback
+const scopes = "user-read-email user-read-private playlist-read-private";
+
+  const handleSpotifyConnect = () => {
+    // route backend (backend spotify authorize endpoint)
+    const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
+    window.location.href = url;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4">
       <div className="max-w-4xl mx-auto">
@@ -118,9 +128,15 @@ const PostLoginPage = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-4xl font-bold text-gray-800">Protected Page</h1>
-              <p className="mt-2 text-gray-600">
+              <h2 className="mt-2 text-gray-600">
                 Welcome, {spotifyProfile?.display_name || 'User'}
-              </p>
+              </h2>
+              <button
+        onClick={handleSpotifyConnect}
+        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold"
+      >
+        Connect Spotify
+      </button>
             </div>
             <button
               onClick={signoutCallback}
