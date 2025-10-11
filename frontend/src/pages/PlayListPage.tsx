@@ -15,7 +15,7 @@ export default function PlaylistPage() {
     if (!user?.id) return;
 
     axios
-      .get(`http://localhost:8080/api/playlists/${user.id}`)
+      .get(`http://localhost:8080/api/spotify/playlists/${user.id}`)
       .then((res) => {
         console.log("🎵 Spotify playlists:", res.data);
         setPlaylists(res.data.items || []);

@@ -67,4 +67,7 @@ public class UserService {
     }
 
 
+    public UserInfo findByEmail(String email) {
+        return userInfoRepository.findByEmail(email).orElse(null);
+    }
 }

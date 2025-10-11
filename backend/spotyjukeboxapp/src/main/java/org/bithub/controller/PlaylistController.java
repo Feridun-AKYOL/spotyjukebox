@@ -1,65 +1,72 @@
 package org.bithub.controller;
 
-import org.bithub.model.SpotifyPlaylist;
+import lombok.RequiredArgsConstructor;
 import org.bithub.model.UserInfo;
-import org.bithub.service.SpotifyService;
 import org.bithub.service.UserService;
+import org.bithub.service.SpotifyRefreshService;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
-@CrossOrigin(origins = "http://127.0.0.1:3000") // Adjust this according to your frontend URL
+@RequestMapping("/api/spotify")
+@RequiredArgsConstructor
 public class PlaylistController {
 
-    private final SpotifyService spotifyService;
     private final UserService userService;
-
-    public PlaylistController(SpotifyService spotifyService, UserService userService) {
-        this.spotifyService = spotifyService;
-        this.userService = userService;
-    }
-
-    @GetMapping("/playlists")
-    public ResponseEntity<List<SpotifyPlaylist>> getPlaylists() {
-        try {
-            List<SpotifyPlaylist> playlists = spotifyService.getUserPlaylists();
-            return ResponseEntity.ok(playlists);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
-    }
+    private final SpotifyRefreshService spotifyRefreshService;
 
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
         UserInfo user = userService.get(userId);
         if (user == null || user.getAccessToken() == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not connected to Spotify");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User or access token not found"));
         }
 
-        String accessToken = user.getAccessToken();
+        try {
+            return fetchPlaylists(user);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(accessToken);
-        HttpEntity<Void> request = new HttpEntity<>(headers);
+        } catch (HttpClientErrorException.Unauthorized e) {
+            System.out.println("⚠️ Access token expired, refreshing...");
 
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            if (refreshed == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Failed to refresh token"));
+            }
+
+            try {
+                return fetchPlaylists(refreshed);
+            } catch (Exception retryEx) {
+                retryEx.printStackTrace();
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "Failed to fetch after refresh: " + retryEx.getMessage()));
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private ResponseEntity<?> fetchPlaylists(UserInfo user) {
         RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(user.getAccessToken());
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
         ResponseEntity<Map> response = restTemplate.exchange(
-                "https://api.spotify.com/v1/me/playlists",
+                "https://api.spotify.com/v1/me/playlists?limit=20&offset=0",
                 HttpMethod.GET,
-                request,
+                entity,
                 Map.class
         );
 
-        if (response.getStatusCode() == HttpStatus.UNAUTHORIZED) {
-            // TODO: burada refresh_token akışını ekle
-        }
-
         return ResponseEntity.ok(response.getBody());
     }
-
 }

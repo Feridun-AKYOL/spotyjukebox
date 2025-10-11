@@ -10,15 +10,24 @@ const LoginPage = () => {
 
   useEffect(() => {
     const checkUserInBackend = async () => {
+      if (!user?.id) {
+        setIsChecking(false);
+        return;
+      }
+
       try {
-        // Eğer context'te kullanıcı varsa backend'de de var mı kontrol et
-        if (user?.id) {
-          const res = await axios.get(`http://localhost:8080/api/auth/spotify/me/${user.id}`);
-          if (res.data.exists) {
-            setUserExists(true);
-          }
+        const res = await axios.get(
+          `http://localhost:8080/api/auth/spotify/me/${user.id}`
+        );
+
+        if (res.status === 200 && res.data?.userId) {
+          setUserExists(true);
+          setUser(res.data); // kullanıcıyı context'e de yaz
+        } else {
+          setUserExists(false);
         }
-      } catch {
+      } catch (err) {
+        console.warn("⚠️ User not found in backend:", err);
         setUserExists(false);
       } finally {
         setIsChecking(false);
@@ -26,20 +35,24 @@ const LoginPage = () => {
     };
 
     checkUserInBackend();
-  }, [user?.id]);
+  }, [user?.id, setUser]);
 
-  const handleSpotifyLogin = () => {
-    const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-    const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-    const scopes = "user-read-email user-read-private playlist-read-private";
+  const handleSpotifyLogin = async () => {
+  try {
+    const res = await axios.get("http://localhost:8080/api/auth/spotify/login");
+    if (res.data?.authorizeUrl) {
+      console.log("🎧 Redirecting to Spotify:", res.data.authorizeUrl);
+      window.location.href = res.data.authorizeUrl;
+    } else {
+      console.error("❌ No redirect URL received from backend:", res.data);
+    }
+  } catch (err) {
+    console.error("❌ Spotify login failed:", err);
+  }
+};
 
-    const spotifyAuthUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=${encodeURIComponent(scopes)}&show_dialog=true`;
 
-    console.log("🎧 Redirecting to Spotify:", spotifyAuthUrl);
-    window.location.href = spotifyAuthUrl;
-  };
+
 
   if (isChecking) {
     return (
@@ -55,7 +68,7 @@ const LoginPage = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome</h1>
         <p className="text-gray-600 mb-8">
           {userExists
-            ? "You're already signed in."
+            ? "You're already signed in 🎧"
             : "Please sign in with your Spotify account"}
         </p>
 

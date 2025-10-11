@@ -3,7 +3,6 @@ package org.bithub.controller;
 import lombok.RequiredArgsConstructor;
 import org.bithub.model.UserInfo;
 import org.bithub.persistence.UserInfoRepository;
-import org.bithub.service.SpotifyTokenService;
 import org.bithub.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -12,13 +11,18 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/auth/spotify")
+@RequiredArgsConstructor
 public class SpotifyAuthController {
 
   private final UserService userService;
+
     @Value("${spotify.client-id}")
     private String clientId;
 
@@ -28,31 +32,21 @@ public class SpotifyAuthController {
     @Value("${spotify.redirect-uri}")
     private String redirectUri;
 
-    private final SpotifyTokenService spotifyTokenService;
 
-    public SpotifyAuthController(SpotifyTokenService spotifyTokenService, UserInfoRepository userInfoRepository, UserService userService) {
-        this.spotifyTokenService = spotifyTokenService;
-        this.userService = userService;
-    }
 
+    /**
+     * Spotify’dan dönen code’u alır, token değişimini yapar, user kaydını günceller veya oluşturur.
+     */
     @PostMapping("/callback")
     public ResponseEntity<?> handleSpotifyCallback(@RequestBody Map<String, String> body) {
         String code = body.get("code");
-
-
         if (code == null) {
-            return ResponseEntity.badRequest().body("Missing authorization code");
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing authorization code"));
         }
 
-        System.out.println("🔁 Spotify code received: " + code);
-        System.out.println("🎯 Redirect URI: " + redirectUri);
-
         try {
-            // Step 1: Token exchange
-            String tokenUrl = "https://accounts.spotify.com/api/token";
-
+            // 1️⃣ Token exchange
             RestTemplate restTemplate = new RestTemplate();
-
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setBasicAuth(clientId, clientSecret);
@@ -62,23 +56,23 @@ public class SpotifyAuthController {
             params.add("code", code);
             params.add("redirect_uri", redirectUri);
 
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
-            ResponseEntity<Map> tokenResponse = restTemplate.postForEntity(tokenUrl, request, Map.class);
+            HttpEntity<MultiValueMap<String, String>> tokenRequest = new HttpEntity<>(params, headers);
+            ResponseEntity<Map> tokenResponse = restTemplate.postForEntity(
+                    "https://accounts.spotify.com/api/token", tokenRequest, Map.class
+            );
 
-            if (!tokenResponse.getStatusCode().is2xxSuccessful() || tokenResponse.getBody() == null) {
-                System.err.println("❌ Spotify token exchange failed: " + tokenResponse);
+            if (!tokenResponse.getStatusCode().is2xxSuccessful()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Spotify token exchange failed");
+                        .body(Map.of("error", "Spotify token exchange failed"));
             }
 
             Map<String, Object> tokenData = tokenResponse.getBody();
             String accessToken = (String) tokenData.get("access_token");
             String refreshToken = (String) tokenData.get("refresh_token");
             Number expiresIn = (Number) tokenData.get("expires_in");
+            String scopeStr = (String) tokenData.get("scope");
 
-            System.out.println("✅ Token exchange success. Access token received.");
-
-            // Step 2: Fetch user profile
+            // 2️⃣ Spotify profili al
             HttpHeaders profileHeaders = new HttpHeaders();
             profileHeaders.setBearerAuth(accessToken);
             HttpEntity<Void> profileRequest = new HttpEntity<>(profileHeaders);
@@ -90,73 +84,75 @@ public class SpotifyAuthController {
                     Map.class
             );
 
-            if (!profileResponse.getStatusCode().is2xxSuccessful() || profileResponse.getBody() == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Failed to fetch Spotify user profile");
-            }
-
             Map<String, Object> profileData = profileResponse.getBody();
             String spotifyUserId = (String) profileData.get("id");
             String displayName = (String) profileData.get("display_name");
             String email = (String) profileData.get("email");
 
-            System.out.println("🎵 Spotify user: " + displayName + " (" + spotifyUserId + ")");
-
-            // Step 3: Save or update user
-            UserInfo user = userService.get(spotifyUserId);
+            // 3️⃣ Kaydet veya güncelle
+            UserInfo user = userService.getById(spotifyUserId);
             if (user == null) {
                 user = new UserInfo();
                 user.setUserId(spotifyUserId);
+                user.setCreatedAt(java.time.LocalDateTime.now());
             }
+
             user.setDisplayName(displayName);
             user.setEmail(email);
             user.setAccessToken(accessToken);
             user.setRefreshToken(refreshToken);
-            user.setExpiresIn(expiresIn != null ? expiresIn.longValue() : 0L);
+            user.setExpiresIn(expiresIn != null ? expiresIn.longValue() : 3600L);
+            user.setScopes(scopeStr != null ? new HashSet<>(Set.of(scopeStr.split(" "))) : new HashSet<>());
+            user.setUpdatedAt(java.time.LocalDateTime.now());
 
             userService.save(user);
 
             return ResponseEntity.ok(Map.of(
                     "status", "ok",
                     "userId", spotifyUserId,
-                    "displayName", displayName,
-                    "accessToken", accessToken,
-                    "accessTokenSaved", true
+                    "accessToken", accessToken
             ));
 
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body("Spotify auth error: " + e.getMessage());
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 
-
-
     @GetMapping("/login")
     public ResponseEntity<?> redirectToSpotifyAuth() {
-        String scopes = "user-read-private playlist-read-private";
+        if (clientId == null || redirectUri == null) {
+            System.err.println("❌ Spotify environment variables missing!");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Spotify clientId or redirectUri not configured"));
+        }
+
+        String scopes = "user-read-email user-read-private playlist-read-private";
         String authorizeUrl = "https://accounts.spotify.com/authorize" +
                 "?client_id=" + clientId +
                 "&response_type=code" +
                 "&redirect_uri=" + redirectUri +
                 "&scope=" + scopes +
                 "&show_dialog=true";
-        return ResponseEntity.status(302).header("Location", authorizeUrl).build();
-    }
-    @GetMapping("/me/{spotifyUserId}")
-    public ResponseEntity<?> getUser(@PathVariable String spotifyUserId) {
-        var user = userService.get(spotifyUserId);
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("exists", false));
-        }
-        return ResponseEntity.ok(Map.of(
-                "exists", true,
-                "userId", user.getUserId(),
-                "displayName", user.getDisplayName(),
-                "email", user.getEmail()
-        ));
+
+        return ResponseEntity.ok(Map.of("authorizeUrl", authorizeUrl));
     }
 
+    @GetMapping("/me/{userId}")
+    public ResponseEntity<?> getSpotifyUser(@PathVariable String userId) {
+        UserInfo user = userService.get(userId);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User not found"));
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "userId", user.getUserId(),
+                "email", user.getEmail(),
+                "displayName", user.getDisplayName(),
+                "scopes", user.getScopes(),
+                "spotifyLinked", true
+        ));
+    }
 }
