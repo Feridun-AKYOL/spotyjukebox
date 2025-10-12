@@ -7,6 +7,8 @@ import UserInfoPage from './pages/UserInfoPage';
 import PlaylistPage from './pages/PlayListPage';
 import PlaylistDetailPage from './pages/PlaylistDetailPage';
 import SpotifyCallbackPage from './pages/SpotifyCallbackPage';
+import SelectDevicePage from './pages/SelectDevicePage';
+import ConfirmPage from './pages/ConfirmPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
@@ -55,6 +57,21 @@ export const RoutesProvider: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          
+          <Route path="/devices" element={
+            <ProtectedRoute>
+              <SelectDevicePage />
+            </ProtectedRoute>
+            } 
+          />
+
+        <Route path="/confirm" element={
+          <ProtectedRoute>
+            <ConfirmPage />
+          </ProtectedRoute>
+          } 
+          />
+
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
 
