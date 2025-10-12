@@ -23,8 +23,8 @@ public class UserInfo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private String userId;
+    @Column(name = "spotify_user_id", nullable = false)
+    private String spotifyUserId;
 
     private String email;
 
@@ -39,7 +39,7 @@ public class UserInfo {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false) 
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @Column(name = "expires_in", nullable = false)

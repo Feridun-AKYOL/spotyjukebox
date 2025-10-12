@@ -18,7 +18,7 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> persist(@Valid @RequestBody TokenPersistingRequest request) {
         UserInfo saved = service.persistOrUpdate(request);
-        return ResponseEntity.ok(Map.of("status","ok","userId", saved.getUserId()));
+        return ResponseEntity.ok(Map.of("status","ok","userId", saved.getSpotifyUserId()));
     }
 
     @GetMapping("/get/{userId}")
@@ -32,7 +32,7 @@ public class UserController {
                     "message","User not found"
             ));
         }
-        System.out.println("✅ User found: " + u.getUserId()); // DEBUG
+        System.out.println("✅ User found: " + u.getSpotifyUserId()); // DEBUG
         return ResponseEntity.ok(u);
     }
 

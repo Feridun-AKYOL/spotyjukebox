@@ -12,7 +12,7 @@ public class UserMapper {
      * Boş/null değerlerde mevcut değeri korumak istiyorsan burada kontrol ekleyebilirsin.
      */
     public static void updateEntity(UserInfo entity, TokenPersistingRequest request) {
-        entity.setUserId(request.userId());
+        entity.setSpotifyUserId(request.userId());
         entity.setAccessToken(request.accessToken());
         entity.setRefreshToken(request.refreshToken());
 

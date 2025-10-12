@@ -36,7 +36,7 @@ public class UserService {
     public UserInfo persistOrUpdate(TokenPersistingRequest request) {
         UserInfo entity = userInfoRepository.findByEmail(request.email())
                 .orElseGet(() -> UserInfo.builder()
-                        .userId(request.userId())
+                        .spotifyUserId(request.userId())
                         .email(request.email())
                         .build());
 
@@ -47,7 +47,7 @@ public class UserService {
     }
 
     public UserInfo getById(String userId) {
-        return userInfoRepository.findByUserId(userId).orElse(null);
+        return userInfoRepository.findBySpotifyUserId(userId).orElse(null);
     }
 
     public UserInfo getByEmail(String email) {
@@ -59,7 +59,7 @@ public class UserService {
     }
 
     public UserInfo get(String userId) {
-        return userInfoRepository.findByUserId(userId).orElse(null);
+        return userInfoRepository.findBySpotifyUserId(userId).orElse(null);
     }
 
     public UserInfo save(UserInfo user) {
@@ -69,5 +69,17 @@ public class UserService {
 
     public UserInfo findByEmail(String email) {
         return userInfoRepository.findByEmail(email).orElse(null);
+    }
+
+    public UserInfo findByRefreshToken(String refreshToken) {
+        return userInfoRepository.findByRefreshToken(refreshToken).orElse(null);
+    }
+
+    public UserInfo getUserById(String userId) {
+        return userInfoRepository.findBySpotifyUserId(userId).orElse(null);
+    }
+
+    public UserInfo getUserBySpotifyId(String userSpotifyId) {
+        return userInfoRepository.findBySpotifyUserId(userSpotifyId).orElse(null);
     }
 }

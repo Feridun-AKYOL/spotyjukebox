@@ -61,7 +61,7 @@ public class SpotifyRefreshService {
             user.setUpdatedAt(LocalDateTime.now());
 
             userService.save(user);
-            System.out.println("✅ Token refreshed successfully for user: " + user.getUserId());
+            System.out.println("✅ Token refreshed successfully for user: " + user.getSpotifyUserId());
 
             return user;
 
