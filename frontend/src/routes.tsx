@@ -9,6 +9,7 @@ import PlaylistDetailPage from './pages/PlaylistDetailPage';
 import SpotifyCallbackPage from './pages/SpotifyCallbackPage';
 import SelectDevicePage from './pages/SelectDevicePage';
 import ConfirmPage from './pages/ConfirmPage';
+import SuccessPage from './pages/SuccessPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
@@ -71,6 +72,7 @@ export const RoutesProvider: React.FC = () => {
           </ProtectedRoute>
           } 
           />
+          <Route path="/success" element={<SuccessPage />} /> 
 
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
