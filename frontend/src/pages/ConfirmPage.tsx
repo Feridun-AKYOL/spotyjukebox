@@ -1,37 +1,31 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function ConfirmPage() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // 🔹 Önceki sayfalardan gelen veriler
   const { selectedPlaylist, selectedDevice } = location.state || {};
 
-  if (!selectedPlaylist || !selectedDevice) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-gray-400 text-lg">
-        Missing playlist or device information.
-        <button
-          className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg"
-          onClick={() => navigate("/playlists")}
-        >
-          Go Back
-        </button>
-      </div>
-    );
-  }
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const userId = storedUser?.id;
 
-  const handleConfirm = () => {
-    // 🔹 İleride burada jukebox başlatma veya Spotify API "play" çağrısı yapılacak
-    console.log("✅ Confirmed selection:", {
-      playlist: selectedPlaylist,
-      device: selectedDevice,
-    });
+  const handleConfirm = async () => {
+    if (!selectedPlaylist || !selectedDevice || !userId) return;
 
-    // Şimdilik kullanıcıyı basit bir onay ekranına yönlendirebiliriz
-    navigate("/success", {
-      state: { selectedPlaylist, selectedDevice },
-    });
+    try {
+      const res = await axios.post("http://localhost:8080/api/spotify/play", {
+        userId,
+        deviceId: selectedDevice.id,
+        playlistId: selectedPlaylist.id,
+      });
+      console.log("✅ Playback started:", res.data);
+      navigate("/success", {
+        state: { selectedPlaylist, selectedDevice },
+      });
+    } catch (err) {
+      console.error("❌ Failed to start playback:", err);
+      alert("Failed to start playback. Please make sure Spotify is open.");
+    }
   };
 
   return (
@@ -41,9 +35,9 @@ export default function ConfirmPage() {
           Confirm Your Selection
         </h2>
 
-        {/* Playlist Preview */}
+        {/* Playlist Info */}
         <div className="bg-gray-800 rounded-xl p-4 mb-6 flex gap-4 items-center">
-          {selectedPlaylist.images?.[0] ? (
+          {selectedPlaylist?.images?.[0] ? (
             <img
               src={selectedPlaylist.images[0].url}
               alt={selectedPlaylist.name}
@@ -89,7 +83,7 @@ export default function ConfirmPage() {
             onClick={handleConfirm}
             className="px-5 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium"
           >
-            Confirm ✅
+            Confirm & Play ▶️
           </button>
         </div>
 

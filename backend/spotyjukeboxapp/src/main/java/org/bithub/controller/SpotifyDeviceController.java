@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/spotify")
@@ -35,4 +36,26 @@ public class SpotifyDeviceController {
             return ResponseEntity.internalServerError().body("Failed to fetch devices");
         }
     }
+
+    @PostMapping("/play")
+    public ResponseEntity<?> playPlaylist(@RequestBody Map<String, String> body) {
+        try {
+            String userId = body.get("userId");
+            String deviceId = body.get("deviceId");
+            String playlistId = body.get("playlistId");
+
+            if (userId == null || deviceId == null || playlistId == null) {
+                return ResponseEntity.badRequest().body("Missing parameters");
+            }
+
+            UserInfo user = userService.getUserById(userId);
+            spotifyService.playOnDevice(user, deviceId, playlistId);
+
+            return ResponseEntity.ok(Map.of("status", "playing"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Failed to play playlist");
+        }
+    }
+
 }

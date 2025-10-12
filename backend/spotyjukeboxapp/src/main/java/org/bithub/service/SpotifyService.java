@@ -131,4 +131,30 @@ public class SpotifyService {
     }
 
 
+    public void playOnDevice(UserInfo user, String deviceId, String playlistId) {
+        String url = "https://api.spotify.com/v1/me/player/play?device_id=" + deviceId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = Map.of(
+                "context_uri", "spotify:playlist:" + playlistId
+        );
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
+            System.out.println("🎵 Playing playlist " + playlistId + " on device " + deviceId);
+        } catch (HttpClientErrorException.Unauthorized e) {
+            System.out.println("Access token expired. Refreshing...");
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            playOnDevice(refreshed, deviceId, playlistId);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to start playback");
+        }
+    }
+
 }
