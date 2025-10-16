@@ -43,21 +43,21 @@ export default function PlaylistPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen bg-gray-950">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-green-500 mb-4"></div>
+      <div className="flex flex-col justify-center items-center h-screen bg-[#121212]">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#1DB954] mb-4"></div>
         <p className="text-gray-400 text-lg">Loading your playlists...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-200 px-4 py-8">
+    <div className="min-h-screen bg-[#121212] text-[#B3B3B3] px-4 py-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-3">
-            <Music className="w-10 h-10 text-green-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+            <Music className="w-10 h-10 text-[#1DB954]" />
+            <h1 className="text-4xl font-bold text-white">
               Your Playlists
             </h1>
           </div>
@@ -68,7 +68,7 @@ export default function PlaylistPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-900/30 border border-red-700 text-red-200 px-6 py-4 rounded-xl mb-6 text-center backdrop-blur-sm">
+          <div className="bg-red-900/40 border border-red-700 text-red-200 px-6 py-4 rounded-xl mb-6 text-center">
             <p className="font-medium">{error}</p>
           </div>
         )}
@@ -80,16 +80,15 @@ export default function PlaylistPage() {
               key={playlist.id}
               className={`group relative rounded-2xl overflow-hidden transition-all duration-300 transform hover:scale-105 ${
                 selected === playlist.id
-                  ? "ring-4 ring-green-500 shadow-2xl shadow-green-500/30"
-                  : "hover:shadow-xl hover:shadow-gray-900/50"
+                  ? "ring-4 ring-[#1DB954] shadow-2xl shadow-[#1DB954]/30"
+                  : "hover:shadow-lg hover:shadow-black/50"
               }`}
             >
-              {/* Card Container */}
               <div
                 onClick={() => setSelected(playlist.id)}
-                className="cursor-pointer bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl overflow-hidden h-full flex flex-col"
+                className="cursor-pointer bg-[#181818] hover:bg-[#282828] border border-transparent rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-200"
               >
-                {/* Image Container */}
+                {/* Image */}
                 <div className="relative aspect-square overflow-hidden">
                   {playlist.images?.[0] ? (
                     <>
@@ -98,28 +97,28 @@ export default function PlaylistPage() {
                         alt={playlist.name}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-60"></div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                     </>
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                      <Music className="w-20 h-20 text-gray-700" />
+                    <div className="w-full h-full bg-[#282828] flex items-center justify-center">
+                      <Music className="w-20 h-20 text-gray-600" />
                     </div>
                   )}
-                  
+
                   {/* Selection Indicator */}
                   {selected === playlist.id && (
-                    <div className="absolute top-4 right-4 bg-green-500 rounded-full p-2 shadow-lg animate-pulse">
-                      <PlayCircle className="w-6 h-6 text-white" />
+                    <div className="absolute top-4 right-4 bg-[#1DB954] rounded-full p-2 shadow-lg">
+                      <PlayCircle className="w-6 h-6 text-black" />
                     </div>
                   )}
                 </div>
 
-                {/* Info Section */}
+                {/* Info */}
                 <div className="p-5 flex-1 flex flex-col">
-                  <h2 className="font-bold text-lg text-gray-100 mb-2 line-clamp-2 group-hover:text-green-400 transition-colors">
+                  <h2 className="font-bold text-lg text-white mb-2 line-clamp-2 group-hover:text-[#1DB954] transition-colors">
                     {playlist.name}
                   </h2>
-                  
+
                   <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
                     <Music className="w-4 h-4" />
                     <span>{playlist.tracks?.total ?? 0} tracks</span>
@@ -127,20 +126,15 @@ export default function PlaylistPage() {
 
                   <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
                     <User className="w-3 h-3" />
-                    <span className="truncate">
-                      {playlist.owner?.display_name || "Unknown"}
-                    </span>
+                    <span>{playlist.owner?.display_name || "Unknown"}</span>
                   </div>
 
-                  {/* View Details Button */}
                   <button
                     onClick={(e) => handleViewDetails(playlist.id, e)}
-                    className="mt-auto w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800/50 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 rounded-lg transition-all duration-200 text-sm font-medium group/btn"
+                    className="mt-auto w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 rounded-lg transition-all duration-200 text-sm font-medium text-[#1DB954]"
                   >
-                    <Info className="w-4 h-4 group-hover/btn:text-green-400 transition-colors" />
-                    <span className="group-hover/btn:text-green-400 transition-colors">
-                      View Details
-                    </span>
+                    <Info className="w-4 h-4" />
+                    <span>View Details</span>
                   </button>
                 </div>
               </div>
@@ -161,55 +155,27 @@ export default function PlaylistPage() {
           </div>
         )}
 
-        {/* Navigation Footer */}
-        <div className="sticky bottom-0 bg-gray-900/80 backdrop-blur-lg border-t border-gray-800 rounded-2xl p-6 mt-8">
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-[#181818]/80 backdrop-blur-lg border-t border-[#282828] rounded-2xl p-6 mt-8">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <button
-              className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl transition-all duration-200 font-medium"
+              className="flex items-center gap-2 px-6 py-3 bg-[#282828] hover:bg-[#333333] rounded-xl text-white transition-all duration-200"
               onClick={() => navigate(-1)}
             >
-              <span>←</span>
-              <span>Back</span>
+              ← Back
             </button>
 
-            <div className="flex items-center gap-6">
-              {/* Step Indicator */}
-              <div className="hidden sm:flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center font-bold">
-                    1
-                  </div>
-                  <span className="text-green-400 font-medium">Playlist</span>
-                </div>
-                <div className="w-12 h-0.5 bg-gray-700"></div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-                    2
-                  </div>
-                  <span className="text-gray-500">Device</span>
-                </div>
-                <div className="w-12 h-0.5 bg-gray-700"></div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-                    3
-                  </div>
-                  <span className="text-gray-500">Play</span>
-                </div>
-              </div>
-
-              <button
-                className={`flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all duration-200 ${
-                  selected
-                    ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 shadow-lg shadow-green-500/30"
-                    : "bg-gray-700 cursor-not-allowed opacity-50"
-                }`}
-                onClick={handleNext}
-                disabled={!selected}
-              >
-                <span>Continue to Devices</span>
-                <span>→</span>
-              </button>
-            </div>
+            <button
+              className={`flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                selected
+                  ? "bg-[#1DB954] hover:bg-[#1ED760] text-black"
+                  : "bg-[#282828] text-gray-500 cursor-not-allowed"
+              }`}
+              onClick={handleNext}
+              disabled={!selected}
+            >
+              Continue →
+            </button>
           </div>
         </div>
       </div>
