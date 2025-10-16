@@ -18,56 +18,80 @@ export default function ClientSessionPage() {
   const [voted, setVoted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔹 Şimdilik test için dummy veri
   useEffect(() => {
     if (!ownerId) {
       setError("No session found. Please scan a valid QR code.");
       return;
     }
 
-    // TODO: replace with backend endpoint -> `/api/spotify/now-playing/{ownerId}`
-    setNowPlaying({
-      id: "track1",
-      name: "Flowers",
-      artist: "Miley Cyrus",
-      albumArt:
-        "https://i.scdn.co/image/ab67616d0000b273b32e5a2a9ffcb8a23df3f06a",
-      votes: 0,
-    });
+    const fetchNowPlaying = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:8080/api/spotify/now-playing/${ownerId}`
+        );
+        const item = res.data.item;
+        if (!item) return;
 
-    setUpNext([
-      {
-        id: "track2",
-        name: "Blinding Lights",
-        artist: "The Weeknd",
-        albumArt:
-          "https://i.scdn.co/image/ab67616d0000b2738d2d9d15f09a79a36c1a4b0a",
-        votes: 5,
-      },
-      {
-        id: "track3",
-        name: "Levitating",
-        artist: "Dua Lipa",
-        albumArt:
-          "https://i.scdn.co/image/ab67616d0000b273e59a9c51a5f69dcdcfaa3b02",
-        votes: 3,
-      },
-    ]);
+        setNowPlaying({
+          id: item.id,
+          name: item.name,
+          artist: item.artists.map((a: any) => a.name).join(", "),
+          albumArt: item.album.images[0]?.url || "",
+          votes: 0,
+        });
+      } catch (err) {
+        console.error("Failed to fetch now playing:", err);
+        setError("Failed to connect to Spotify session.");
+      }
+    };
+
+    const fetchQueue = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:8080/api/spotify/queue/${ownerId}`
+        );
+        const queue = res.data.queue || [];
+        console.log("🎶 Spotify Queue:", queue);
+
+        const uniqueTracks = new Map<string, any>();
+queue.forEach((track: any) => {
+  if (track.id && !uniqueTracks.has(track.id)) {
+    uniqueTracks.set(track.id, track);
+  }
+});
+
+setUpNext(
+  Array.from(uniqueTracks.values()).map((track: any) => ({
+    id: track.id,
+    name: track.name,
+    artist: track.artists.map((a: any) => a.name).join(", "),
+    albumArt: track.album.images[0]?.url || "",
+    votes: 0,
+  }))
+);
+      } catch (err) {
+        console.error("Failed to fetch queue:", err);
+      }
+    };
+
+    fetchNowPlaying();
+    fetchQueue();
+
+    // 🔄 Her 10 saniyede bir yenile
+    const interval = setInterval(() => {
+      fetchNowPlaying();
+      fetchQueue();
+    }, 10000);
+    return () => clearInterval(interval);
   }, [ownerId]);
 
   const handleVote = (trackId: string) => {
     setVoted(trackId);
-
-    // 🔹 Backend'e oy gönderimi (gelecek adımda gerçek endpoint)
-    // await axios.post(`/api/jukebox/vote`, { ownerId, trackId });
-
-    // Basit animasyon için local artış
     setUpNext((prev) =>
       prev.map((t) =>
         t.id === trackId ? { ...t, votes: t.votes + 1 } : t
       )
     );
-
     setTimeout(() => setVoted(null), 2000);
   };
 
@@ -88,7 +112,7 @@ export default function ClientSessionPage() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center px-4 py-8">
-      {/* Now Playing Section */}
+      {/* Now Playing */}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-green-400 mb-4">
           Now Playing 🎵
@@ -104,50 +128,53 @@ export default function ClientSessionPage() {
         </div>
       </div>
 
-      {/* Up Next Section */}
+      {/* Up Next */}
       <div className="w-full max-w-2xl">
         <h3 className="text-xl font-semibold text-green-400 mb-4 text-center">
           Up Next
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {upNext.map((track) => (
-            <div
-              key={track.id}
-              className={`bg-[#181818] p-4 rounded-xl border ${
-                voted === track.id
-                  ? "border-green-500 ring-1 ring-green-400"
-                  : "border-gray-800"
-              } transition-all duration-300 hover:scale-105`}
-            >
-              <img
-                src={track.albumArt}
-                alt={track.name}
-                className="w-full h-40 object-cover rounded-lg mb-3"
-              />
-              <h4 className="font-semibold">{track.name}</h4>
-              <p className="text-gray-400 text-sm mb-3">{track.artist}</p>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">
-                  {track.votes} votes
-                </span>
-                <button
-                  onClick={() => handleVote(track.id)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    voted === track.id
-                      ? "bg-green-500 text-black"
-                      : "bg-gray-700 hover:bg-green-500 hover:text-black"
-                  }`}
-                  disabled={voted !== null}
-                >
-                  {voted === track.id ? "Voted ✅" : "Vote"}
-                </button>
+        {upNext.length === 0 ? (
+          <p className="text-gray-500 text-center">No upcoming tracks.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {upNext.map((track) => (
+              <div
+                key={track.id}
+                className={`bg-[#181818] p-4 rounded-xl border ${
+                  voted === track.id
+                    ? "border-green-500 ring-1 ring-green-400"
+                    : "border-gray-800"
+                } transition-all duration-300 hover:scale-105`}
+              >
+                <img
+                  src={track.albumArt}
+                  alt={track.name}
+                  className="w-full h-40 object-cover rounded-lg mb-3"
+                />
+                <h4 className="font-semibold">{track.name}</h4>
+                <p className="text-gray-400 text-sm mb-3">{track.artist}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">
+                    {track.votes} votes
+                  </span>
+                  <button
+                    onClick={() => handleVote(track.id)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      voted === track.id
+                        ? "bg-green-500 text-black"
+                        : "bg-gray-700 hover:bg-green-500 hover:text-black"
+                    }`}
+                    disabled={voted !== null}
+                  >
+                    {voted === track.id ? "Voted ✅" : "Vote"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Footer */}
       <div className="mt-10 text-gray-500 text-sm text-center">
         Connected to session:{" "}
         <span className="text-green-400">{ownerId}</span>

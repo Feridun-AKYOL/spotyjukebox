@@ -157,4 +157,53 @@ public class SpotifyService {
         }
     }
 
+    public Map<String, Object> getNowPlaying(UserInfo user) {
+        String url = "https://api.spotify.com/v1/me/player/currently-playing";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return response.getBody();
+            } else {
+                return Map.of("is_playing", false);
+            }
+        } catch (HttpClientErrorException.Unauthorized e) {
+            System.out.println("Access token expired. Refreshing...");
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            return getNowPlaying(refreshed);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error fetching now playing");
+        }
+    }
+
+    public Map<String, Object> getQueue(UserInfo user) {
+        String url = "https://api.spotify.com/v1/me/player/queue";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return response.getBody();
+            } else {
+                throw new RuntimeException("No queue data returned from Spotify");
+            }
+        } catch (HttpClientErrorException.Unauthorized e) {
+            System.out.println("Access token expired. Refreshing...");
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            return getQueue(refreshed);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error fetching Spotify queue");
+        }
+    }
+
+
 }

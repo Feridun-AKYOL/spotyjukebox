@@ -6,7 +6,7 @@ export default function SuccessPage() {
   const location = useLocation();
   const { selectedPlaylist, selectedDevice } = location.state || {};
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const ownerId = storedUser?.userId || "demo-owner";
+  const ownerId = storedUser?.id;
 
   const qrValue = `${window.location.origin}/client/session?ownerId=${ownerId}`;
 
@@ -54,13 +54,23 @@ export default function SuccessPage() {
           </button>
 
           <button
-            onClick={() =>
-              window.open(qrValue, "_blank", "noopener,noreferrer")
-            }
-            className="px-6 py-2 bg-transparent border border-green-500 hover:bg-green-500 hover:text-black rounded-full font-semibold transition"
-          >
-            Open Client Link
-          </button>
+  onClick={() => {
+    const clientUrl = `${window.location.origin}/client/session?ownerId=${ownerId}`;
+    console.log("🔗 Opening client URL:", clientUrl);
+
+    // Eğer development modundaysan (localhost)
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      window.open(clientUrl, "_blank");
+    } else {
+      // Production'da HTTPS share link açılır
+      window.open(clientUrl, "_blank", "noopener,noreferrer");
+    }
+  }}
+  className="px-6 py-2 bg-transparent border border-green-500 hover:bg-green-500 hover:text-black rounded-full font-semibold transition"
+>
+  Open Client Link
+</button>
+
         </div>
       </div>
 

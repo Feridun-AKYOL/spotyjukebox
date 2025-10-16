@@ -58,4 +58,19 @@ public class SpotifyDeviceController {
         }
     }
 
+    @GetMapping("/now-playing/{ownerId}")
+    public ResponseEntity<?> getNowPlaying(@PathVariable String ownerId) {
+        try {
+            UserInfo user = userService.getUserBySpotifyId(ownerId);
+            if (user == null) return ResponseEntity.notFound().build();
+
+            Map<String, Object> data = spotifyService.getNowPlaying(user);
+
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Failed to fetch now playing track");
+        }
+    }
+
 }

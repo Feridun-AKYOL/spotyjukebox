@@ -2,6 +2,7 @@ package org.bithub.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.bithub.model.UserInfo;
+import org.bithub.service.SpotifyService;
 import org.bithub.service.UserService;
 import org.bithub.service.SpotifyRefreshService;
 import org.springframework.http.*;
@@ -18,6 +19,7 @@ public class PlaylistController {
 
     private final UserService userService;
     private final SpotifyRefreshService spotifyRefreshService;
+    private final SpotifyService spotifyService;
 
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
@@ -69,4 +71,19 @@ public class PlaylistController {
 
         return ResponseEntity.ok(response.getBody());
     }
+
+    @GetMapping("/queue/{ownerId}")
+    public ResponseEntity<?> getQueue(@PathVariable String ownerId) {
+        try {
+            UserInfo user = userService.getUserBySpotifyId(ownerId);
+            if (user == null) return ResponseEntity.notFound().build();
+
+            Map<String, Object> queueData = spotifyService.getQueue(user);
+            return ResponseEntity.ok(queueData);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Failed to fetch Spotify queue");
+        }
+    }
+
 }
