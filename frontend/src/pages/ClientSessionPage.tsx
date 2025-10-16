@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
+import { Client } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
 
 interface Track {
   id: string;
@@ -11,13 +13,52 @@ interface Track {
 }
 
 export default function ClientSessionPage() {
+
   const [params] = useSearchParams();
   const ownerId = params.get("ownerId");
+
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [upNext, setUpNext] = useState<Track[]>([]);
+  const [votes, setVotes] = useState<Record<string, number>>({});
   const [voted, setVoted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [voteError, setVoteError] = useState<string | null>(null);
 
+
+  // 🔹 Benzersiz ama kalıcı clientId üret
+  const [clientId] = useState(() => {
+    let existing = localStorage.getItem("clientId");
+    if (!existing) {
+      existing = "guest-" + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem("clientId", existing);
+    }
+    return existing;
+  });
+
+
+  // 📡 WebSocket bağlantısı — anlık oy güncellemesi için
+  useEffect(() => {
+    if (!ownerId) return;
+
+    const socket = new SockJS("http://localhost:8080/ws");
+    const client = new Client({
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe(`/topic/votes/${ownerId}`, (message) => {
+          const updated = JSON.parse(message.body);
+          setVotes(updated);
+        });
+      },
+    });
+
+    client.activate();
+    return () => {
+      void client.deactivate();
+    }
+  }, [ownerId]);
+
+  // 🎵 Şu an çalan şarkı + kuyruk çekimi
   useEffect(() => {
     if (!ownerId) {
       setError("No session found. Please scan a valid QR code.");
@@ -51,24 +92,23 @@ export default function ClientSessionPage() {
           `http://localhost:8080/api/spotify/queue/${ownerId}`
         );
         const queue = res.data.queue || [];
-        console.log("🎶 Spotify Queue:", queue);
 
         const uniqueTracks = new Map<string, any>();
-queue.forEach((track: any) => {
-  if (track.id && !uniqueTracks.has(track.id)) {
-    uniqueTracks.set(track.id, track);
-  }
-});
+        queue.forEach((track: any) => {
+          if (track.id && !uniqueTracks.has(track.id)) {
+            uniqueTracks.set(track.id, track);
+          }
+        });
 
-setUpNext(
-  Array.from(uniqueTracks.values()).map((track: any) => ({
-    id: track.id,
-    name: track.name,
-    artist: track.artists.map((a: any) => a.name).join(", "),
-    albumArt: track.album.images[0]?.url || "",
-    votes: 0,
-  }))
-);
+        setUpNext(
+          Array.from(uniqueTracks.values()).map((track: any) => ({
+            id: track.id,
+            name: track.name,
+            artist: track.artists.map((a: any) => a.name).join(", "),
+            albumArt: track.album.images[0]?.url || "",
+            votes: 0,
+          }))
+        );
       } catch (err) {
         console.error("Failed to fetch queue:", err);
       }
@@ -82,27 +122,47 @@ setUpNext(
       fetchNowPlaying();
       fetchQueue();
     }, 10000);
+
     return () => clearInterval(interval);
   }, [ownerId]);
 
-  const handleVote = (trackId: string) => {
+  // 🗳 Oy gönder
+  const handleVote = async (trackId: string) => {
+    if (!ownerId) return;
     setVoted(trackId);
-    setUpNext((prev) =>
-      prev.map((t) =>
-        t.id === trackId ? { ...t, votes: t.votes + 1 } : t
-      )
-    );
-    setTimeout(() => setVoted(null), 2000);
+
+    try {
+      await axios.post("http://localhost:8080/api/jukebox/vote", {
+        ownerId,
+        trackId,
+        clientId,
+      });
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Vote failed";
+      console.warn("Vote error:", message);
+
+      // Eğer zaten oy vermişse özel mesaj göster
+      if (message.includes("already voted")) {
+        setVoteError("⚠️ You already voted for this song.");
+      } else {
+        setVoteError("❌ Vote failed. Try again.");
+      }
+    } finally {
+      setTimeout(() => setVoted(null), 2000);
+    }
   };
+  useEffect(() => {
+  if (voteError) {
+    const timer = setTimeout(() => setVoteError(null), 3000);
+    return () => clearTimeout(timer);
+  }
+}, [voteError]);
 
-  if (error)
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#121212] text-gray-400">
-        <h2 className="text-2xl text-red-400 font-bold mb-2">Session Error</h2>
-        <p>{error}</p>
-      </div>
-    );
 
+  // 🎧 Henüz şarkı yüklenmediyse
   if (!nowPlaying)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#121212] text-gray-400">
@@ -110,10 +170,23 @@ setUpNext(
       </div>
     );
 
+  // 🖼️ UI render
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center px-4 py-8">
-      {/* Now Playing */}
+ {/* ⚠️ Error Banner*/}
+  {voteError && (
+  <div className="fixed top-4 left-1/2 transform -translate-x-1/2
+                   bg-yellow-500/20 border border-yellow-400 
+                   text-yellow-300 text-sm px-4 py-2 rounded-lg 
+                   text-center shadow-lg backdrop-blur-md 
+                   animate-pulse transition-opacity duration-500 
+                   z-50">
+    {voteError}
+  </div>
+)}
+
       <div className="text-center mb-10">
+        {/* NOW PLAYING */}
         <h1 className="text-3xl font-bold text-green-400 mb-4">
           Now Playing 🎵
         </h1>
@@ -128,11 +201,12 @@ setUpNext(
         </div>
       </div>
 
-      {/* Up Next */}
+      {/* UP NEXT */}
       <div className="w-full max-w-2xl">
         <h3 className="text-xl font-semibold text-green-400 mb-4 text-center">
           Up Next
         </h3>
+
         {upNext.length === 0 ? (
           <p className="text-gray-500 text-center">No upcoming tracks.</p>
         ) : (
@@ -140,11 +214,10 @@ setUpNext(
             {upNext.map((track) => (
               <div
                 key={track.id}
-                className={`bg-[#181818] p-4 rounded-xl border ${
-                  voted === track.id
-                    ? "border-green-500 ring-1 ring-green-400"
-                    : "border-gray-800"
-                } transition-all duration-300 hover:scale-105`}
+                className={`bg-[#181818] p-4 rounded-xl border transition-all duration-300 hover:scale-105 ${voted === track.id
+                  ? "border-green-500 ring-1 ring-green-400"
+                  : "border-gray-800"
+                  }`}
               >
                 <img
                   src={track.albumArt}
@@ -155,15 +228,14 @@ setUpNext(
                 <p className="text-gray-400 text-sm mb-3">{track.artist}</p>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">
-                    {track.votes} votes
+                    {votes[track.id] ?? track.votes ?? 0} votes
                   </span>
                   <button
                     onClick={() => handleVote(track.id)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      voted === track.id
-                        ? "bg-green-500 text-black"
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition ${voted === track.id
+                        ? "bg-green-500 text-black cursor-not-allowed"
                         : "bg-gray-700 hover:bg-green-500 hover:text-black"
-                    }`}
+                      }`}
                     disabled={voted !== null}
                   >
                     {voted === track.id ? "Voted ✅" : "Vote"}
@@ -175,9 +247,10 @@ setUpNext(
         )}
       </div>
 
+      {/* FOOTER */}
       <div className="mt-10 text-gray-500 text-sm text-center">
         Connected to session:{" "}
-        <span className="text-green-400">{ownerId}</span>
+        <span className="text-green-400 font-mono">{ownerId}</span>
       </div>
     </div>
   );

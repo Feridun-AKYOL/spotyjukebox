@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 public class SpotifyService {
 
     private final SpotifyRefreshService spotifyRefreshService;
+    private final VoteService voteService;
+
     @Value("${spotify.api.url}")
     private String spotifyApiUrl;
 
@@ -190,20 +192,60 @@ public class SpotifyService {
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return response.getBody();
+                Map<String, Object> body = response.getBody();
+                List<Map<String, Object>> queue = (List<Map<String, Object>>) body.get("queue");
+
+                if (queue == null || queue.isEmpty()) {
+                    System.out.println("No tracks found in queue");
+                    return body;
+                }
+
+                // 🔹 Oy sayısını çek (sadece 1 saat içindekiler)
+                Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
+                List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+
+                // 🔹 Oy bilgilerini queue’ya ekle
+                queue.forEach(track -> {
+                    String trackId = (String) track.get("id");
+                    long votes = voteCounts.getOrDefault(trackId, 0L);
+                    track.put("votes", votes);
+                });
+
+                // 🔹 Oy sayısına göre sırala (çok oyu olan öne)
+                queue.sort((a, b) -> {
+                    long v1 = (long) a.getOrDefault("votes", 0L);
+                    long v2 = (long) b.getOrDefault("votes", 0L);
+                    return Long.compare(v2, v1);
+                });
+
+                // 🔹 Cooldown’daki parçaları (son 3 çalan) sona at
+                queue.sort((a, b) -> {
+                    boolean aCooldown = cooldownTracks.contains(a.get("id"));
+                    boolean bCooldown = cooldownTracks.contains(b.get("id"));
+                    if (aCooldown && !bCooldown) return 1;
+                    if (!aCooldown && bCooldown) return -1;
+                    return 0;
+                });
+
+                body.put("queue", queue);
+                return body;
             } else {
                 throw new RuntimeException("No queue data returned from Spotify");
             }
+
         } catch (HttpClientErrorException.Unauthorized e) {
             System.out.println("Access token expired. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             return getQueue(refreshed);
+
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Error fetching Spotify queue");
         }
     }
+
 
 
 }
