@@ -10,6 +10,8 @@ import SpotifyCallbackPage from './pages/SpotifyCallbackPage';
 import SelectDevicePage from './pages/SelectDevicePage';
 import ConfirmPage from './pages/ConfirmPage';
 import SuccessPage from './pages/SuccessPage';
+import MainPage from './pages/MainPage';
+import ClientPage from './pages/ClientPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useContext(AuthContext);
@@ -74,7 +76,8 @@ export const RoutesProvider: React.FC = () => {
           />
           <Route path="/success" element={<SuccessPage />} /> 
 
-          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/" element={<MainPage />} />
+          <Route path="/client" element={<ClientPage />} />  // QR ile gelenler için
         </Routes>
 
       </Router>
