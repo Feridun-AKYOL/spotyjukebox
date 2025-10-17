@@ -68,7 +68,7 @@ export default function ClientSessionPage() {
       return;
     }
 
-   const fetchNowPlaying = async () => {
+const fetchNowPlaying = async () => {
   try {
     const res = await axios.get(
       `http://127.0.0.1:8080/api/spotify/now-playing/${ownerId}`
@@ -83,25 +83,26 @@ export default function ClientSessionPage() {
     if (currentTrackId && currentTrackId !== item.id) {
       console.log(`🎵 Track changed from ${currentTrackName} to ${item.name}`);
 
-      // 💾 Eski şarkıyı previousTrackId olarak kaydet
-      setPreviousTrackId(currentTrackId);
-
-      // 🧹 Sadece gerçekten farklı şarkıysa sıfırla
-      if (previousTrackId && previousTrackId !== item.id) {
-        try {
-          await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
-            ownerId,
-            trackId: previousTrackId,
-          });
-          console.log("✅ Backend reset votes for:", previousTrackId);
-        } catch (err) {
-          console.warn("⚠️ Failed to reset votes:", err);
-        }
+      // ✅ ESKİ şarkının (şimdi biten) oylarını backend'de sıfırla
+      try {
+        await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
+          ownerId,
+          trackId: currentTrackId, // ✅ DOĞRU! Şimdi biten şarkı
+        });
+        console.log("✅ Backend reset votes for:", currentTrackId);
+      } catch (err) {
+        console.warn("⚠️ Failed to reset votes:", err);
       }
 
-      // Frontend tarafında oyları sıfırla
-      setVotes({});
-      setUpNext((prev) => prev.map((t) => ({ ...t, votes: 0 })));
+      // ✅ Frontend'de sadece o şarkının oyunu sil
+      setVotes((prev) => {
+        const newVotes = { ...prev };
+        delete newVotes[currentTrackId];
+        return newVotes;
+      });
+
+      // ✅ Çalan şarkıyı kuyruktan çıkar
+      setUpNext((prev) => prev.filter((t) => t.id !== currentTrackId));
     }
 
     // 🎧 Güncel şarkıyı güncelle (state + ref)
