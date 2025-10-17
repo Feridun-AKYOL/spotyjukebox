@@ -23,12 +23,13 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
     @Modifying
     @Transactional
     @Query("DELETE FROM Vote v WHERE v.ownerId = :ownerId AND v.trackId = :trackId")
-    void deleteByTrackId(@Param("ownerId") String ownerId, @Param("trackId") String trackId);
+    void deleteVotesForTrack(@Param("ownerId") String ownerId, @Param("trackId") String trackId);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM Vote v WHERE v.createdAt < :threshold")
     void deleteOldVotes(@Param("threshold") LocalDateTime threshold);
+
 
     List<Vote> findByOwnerIdAndTrackId(String ownerId, String trackId);
 

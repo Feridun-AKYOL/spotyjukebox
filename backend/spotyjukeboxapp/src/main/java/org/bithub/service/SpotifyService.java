@@ -3,6 +3,7 @@ package org.bithub.service;
 import lombok.RequiredArgsConstructor;
 import org.bithub.model.SpotifyDevice;
 import org.bithub.model.SpotifyPlaylist;
+import org.bithub.model.TrackVote;
 import org.bithub.model.UserInfo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -11,6 +12,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -246,6 +248,31 @@ public class SpotifyService {
         }
     }
 
+    public void overrideQueue(UserInfo user, List<TrackVote> rankedTracks) {
+        String playUrl = "https://api.spotify.com/v1/me/player/play";
+        String queueUrl = "https://api.spotify.com/v1/me/player/queue";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // 1️⃣ En çok oy alan şarkıyı hemen çal
+        if (!rankedTracks.isEmpty()) {
+            Map<String, Object> body = Map.of("uris", List.of("spotify:track:" + rankedTracks.get(0).trackId()));
+            restTemplate.exchange(playUrl, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
+        }
+
+        // 2️⃣ Kalan şarkıları sırayla kuyruğa ekle
+        for (int i = 1; i < rankedTracks.size(); i++) {
+            String uri = "spotify:track:" + rankedTracks.get(i).trackId();
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromHttpUrl(queueUrl)
+                    .queryParam("uri", uri);
+            restTemplate.exchange(builder.toUriString(), HttpMethod.POST, new HttpEntity<>(headers), Void.class);
+        }
+
+        System.out.println("✅ Spotify queue overridden by vote ranking.");
+    }
 
 
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Client } from "@stomp/stompjs";
@@ -18,11 +18,14 @@ export default function ClientSessionPage() {
   const ownerId = params.get("ownerId");
 
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
+  const nowPlayingRef = useRef<Track | null>(null);
   const [upNext, setUpNext] = useState<Track[]>([]);
   const [votes, setVotes] = useState<Record<string, number>>({});
   const [voted, setVoted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [previousTrackId, setPreviousTrackId] = useState<string | null>(null);
+
 
 
   // 🔹 Benzersiz ama kalıcı clientId üret
@@ -65,26 +68,59 @@ export default function ClientSessionPage() {
       return;
     }
 
-    const fetchNowPlaying = async () => {
-      try {
-        const res = await axios.get(
-          `http://localhost:8080/api/spotify/now-playing/${ownerId}`
-        );
-        const item = res.data.item;
-        if (!item) return;
+   const fetchNowPlaying = async () => {
+  try {
+    const res = await axios.get(
+      `http://127.0.0.1:8080/api/spotify/now-playing/${ownerId}`
+    );
+    const item = res.data.item;
+    if (!item) return;
 
-        setNowPlaying({
-          id: item.id,
-          name: item.name,
-          artist: item.artists.map((a: any) => a.name).join(", "),
-          albumArt: item.album.images[0]?.url || "",
-          votes: 0,
-        });
-      } catch (err) {
-        console.error("Failed to fetch now playing:", err);
-        setError("Failed to connect to Spotify session.");
+    const currentTrackId = nowPlayingRef.current?.id;
+    const currentTrackName = nowPlayingRef.current?.name;
+
+    // 🎯 Yeni şarkı başladıysa
+    if (currentTrackId && currentTrackId !== item.id) {
+      console.log(`🎵 Track changed from ${currentTrackName} to ${item.name}`);
+
+      // 💾 Eski şarkıyı previousTrackId olarak kaydet
+      setPreviousTrackId(currentTrackId);
+
+      // 🧹 Sadece gerçekten farklı şarkıysa sıfırla
+      if (previousTrackId && previousTrackId !== item.id) {
+        try {
+          await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
+            ownerId,
+            trackId: previousTrackId,
+          });
+          console.log("✅ Backend reset votes for:", previousTrackId);
+        } catch (err) {
+          console.warn("⚠️ Failed to reset votes:", err);
+        }
       }
+
+      // Frontend tarafında oyları sıfırla
+      setVotes({});
+      setUpNext((prev) => prev.map((t) => ({ ...t, votes: 0 })));
+    }
+
+    // 🎧 Güncel şarkıyı güncelle (state + ref)
+    const newTrack = {
+      id: item.id,
+      name: item.name,
+      artist: item.artists.map((a: any) => a.name).join(", "),
+      albumArt: item.album.images[0]?.url || "",
+      votes: 0,
     };
+
+    setNowPlaying(newTrack);
+    nowPlayingRef.current = newTrack;
+  } catch (err) {
+    console.error("Failed to fetch now playing:", err);
+    setError("Failed to connect to Spotify session.");
+  }
+};
+
 
     const fetchQueue = async () => {
       try {
@@ -155,11 +191,11 @@ export default function ClientSessionPage() {
     }
   };
   useEffect(() => {
-  if (voteError) {
-    const timer = setTimeout(() => setVoteError(null), 3000);
-    return () => clearTimeout(timer);
-  }
-}, [voteError]);
+    if (voteError) {
+      const timer = setTimeout(() => setVoteError(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [voteError]);
 
 
   // 🎧 Henüz şarkı yüklenmediyse
@@ -173,17 +209,17 @@ export default function ClientSessionPage() {
   // 🖼️ UI render
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center px-4 py-8">
- {/* ⚠️ Error Banner*/}
-  {voteError && (
-  <div className="fixed top-4 left-1/2 transform -translate-x-1/2
+      {/* ⚠️ Error Banner*/}
+      {voteError || error && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2
                    bg-yellow-500/20 border border-yellow-400 
                    text-yellow-300 text-sm px-4 py-2 rounded-lg 
                    text-center shadow-lg backdrop-blur-md 
                    animate-pulse transition-opacity duration-500 
                    z-50">
-    {voteError}
-  </div>
-)}
+          {voteError} <br /> {error}
+        </div>
+      )}
 
       <div className="text-center mb-10">
         {/* NOW PLAYING */}
@@ -233,8 +269,8 @@ export default function ClientSessionPage() {
                   <button
                     onClick={() => handleVote(track.id)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition ${voted === track.id
-                        ? "bg-green-500 text-black cursor-not-allowed"
-                        : "bg-gray-700 hover:bg-green-500 hover:text-black"
+                      ? "bg-green-500 text-black cursor-not-allowed"
+                      : "bg-gray-700 hover:bg-green-500 hover:text-black"
                       }`}
                     disabled={voted !== null}
                   >

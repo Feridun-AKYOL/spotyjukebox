@@ -1,15 +1,18 @@
 package org.bithub.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.bithub.model.TrackVote;
 import org.bithub.model.UserInfo;
 import org.bithub.service.SpotifyService;
 import org.bithub.service.UserService;
 import org.bithub.service.SpotifyRefreshService;
+import org.bithub.service.VoteService;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -20,6 +23,7 @@ public class PlaylistController {
     private final UserService userService;
     private final SpotifyRefreshService spotifyRefreshService;
     private final SpotifyService spotifyService;
+    private final VoteService voteService;
 
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
@@ -85,5 +89,18 @@ public class PlaylistController {
             return ResponseEntity.internalServerError().body("Failed to fetch Spotify queue");
         }
     }
+
+    @PostMapping("/queue/reorder")
+    public ResponseEntity<?> reorderQueue(@RequestBody Map<String, String> payload) {
+        String ownerId = payload.get("ownerId");
+
+        UserInfo user = userService.getUserBySpotifyId(ownerId);
+        List<TrackVote> rankedTracks = voteService.getRankedTracks(ownerId); // oya göre sıralı
+
+        spotifyService.overrideQueue(user, rankedTracks);
+
+        return ResponseEntity.ok(Map.of("status", "Queue reordered on Spotify"));
+    }
+
 
 }

@@ -12,7 +12,10 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/jukebox")
-@CrossOrigin(origins = "http://127.0.0.1:5173")
+@CrossOrigin(
+        origins = { "http://127.0.0.1:5173", "http://localhost:5173" },
+        allowCredentials = "true"
+)
 @RequiredArgsConstructor
 public class VoteController {
 
@@ -40,10 +43,14 @@ public class VoteController {
 
     @PostMapping("/played")
     public ResponseEntity<?> trackPlayed(@RequestBody Map<String, String> payload) {
-        String ownerId = payload.get("ownerId");
-        String trackId = payload.get("trackId");
-        voteService.resetVotesForPlayedTrack(ownerId, trackId);
-        return ResponseEntity.ok(Map.of("message", "Votes reset for " + trackId));
+        try {
+            String ownerId = payload.get("ownerId");
+            String trackId = payload.get("trackId");
+            voteService.resetVotesForPlayedTrack(ownerId, trackId);
+            return ResponseEntity.ok(Map.of("message", "Votes reset for " + trackId));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/votes/{ownerId}")
