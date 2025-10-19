@@ -90,17 +90,17 @@ public class PlaylistController {
         }
     }
 
-    @PostMapping("/queue/reorder")
-    public ResponseEntity<?> reorderQueue(@RequestBody Map<String, String> payload) {
-        String ownerId = payload.get("ownerId");
-
-        UserInfo user = userService.getUserBySpotifyId(ownerId);
-        List<TrackVote> rankedTracks = voteService.getRankedTracks(ownerId); // oya göre sıralı
-
-        spotifyService.overrideQueue(user, rankedTracks);
-
-        return ResponseEntity.ok(Map.of("status", "Queue reordered on Spotify"));
-    }
+//    @PostMapping("/queue/reorder")
+//    public ResponseEntity<?> reorderQueue(@RequestBody Map<String, String> payload) {
+//        String ownerId = payload.get("ownerId");
+//
+//        UserInfo user = userService.getUserBySpotifyId(ownerId);
+//        List<TrackVote> rankedTracks = voteService.getRankedTracks(ownerId); // oya göre sıralı
+//
+//        spotifyService.overrideQueue(user);
+//
+//        return ResponseEntity.ok(Map.of("status", "Queue reordered on Spotify"));
+//    }
 
 
 }

@@ -128,7 +128,8 @@ public class SpotifyAuthController {
                     .body(Map.of("error", "Spotify clientId or redirectUri not configured"));
         }
 
-        String scopes = "user-read-email user-read-private playlist-read-private user-read-playback-state user-modify-playback-state";
+        String scopes = "user-read-email user-read-private playlist-read-private" +
+                " user-read-playback-state user-modify-playback-state";
         String authorizeUrl = "https://accounts.spotify.com/authorize" +
                 "?client_id=" + clientId +
                 "&response_type=code" +

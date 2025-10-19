@@ -45,6 +45,9 @@ public class UserInfo {
     @Column(name = "expires_in", nullable = false)
     private Long expiresIn;
 
+    @Column(name = "jukebox_playlist_id")
+    private String jukeboxPlaylistId;
+
     @ElementCollection
     @CollectionTable(
             name = "user_info_scopes",

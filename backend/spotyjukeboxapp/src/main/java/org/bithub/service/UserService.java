@@ -62,10 +62,6 @@ public class UserService {
         return userInfoRepository.findBySpotifyUserId(userId).orElse(null);
     }
 
-    public UserInfo save(UserInfo user) {
-        return userInfoRepository.save(user);
-    }
-
 
     public UserInfo findByEmail(String email) {
         return userInfoRepository.findByEmail(email).orElse(null);
@@ -81,5 +77,30 @@ public class UserService {
 
     public UserInfo getUserBySpotifyId(String userSpotifyId) {
         return userInfoRepository.findBySpotifyUserId(userSpotifyId).orElse(null);
+    }
+
+
+    public UserInfo findBySpotifyUserId(String spotifyUserId) {
+        return userInfoRepository.findBySpotifyUserId(spotifyUserId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + spotifyUserId));
+    }
+
+    public void save(UserInfo user) {
+        userInfoRepository.save(user);
+    }
+
+    /**
+     * 🎵 Aktif jukebox oturumu olan kullanıcıları bulur
+     */
+    public List<UserInfo> findAllActiveJukeboxUsers() {
+        // Aktif jukebox oturumu olan kullanıcıları bul
+        // Örnek: Son 30 dakikada oylanmış veya şu an çalan kullanıcılar
+
+        // TODO: Gerçek implementasyon - örnek:
+        // return userRepository.findByJukeboxActiveTrue();
+        // veya
+        // return userRepository.findByLastActivityAfter(LocalDateTime.now().minusMinutes(30));
+
+        return userInfoRepository.findAll(); // Geçici: Tüm kullanıcılar
     }
 }
