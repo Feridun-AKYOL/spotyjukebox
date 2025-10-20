@@ -1,7 +1,6 @@
 package org.bithub.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.bithub.model.TrackVote;
 import org.bithub.model.UserInfo;
 import org.bithub.service.SpotifyService;
 import org.bithub.service.UserService;
@@ -23,7 +22,6 @@ public class PlaylistController {
     private final UserService userService;
     private final SpotifyRefreshService spotifyRefreshService;
     private final SpotifyService spotifyService;
-    private final VoteService voteService;
 
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
@@ -90,30 +88,19 @@ public class PlaylistController {
         }
     }
 
-//    @PostMapping("/queue/reorder")
-//    public ResponseEntity<?> reorderQueue(@RequestBody Map<String, String> payload) {
-//        String ownerId = payload.get("ownerId");
-//
-//        UserInfo user = userService.getUserBySpotifyId(ownerId);
-//        List<TrackVote> rankedTracks = voteService.getRankedTracks(ownerId); // oya göre sıralı
-//
-//        spotifyService.overrideQueue(user);
-//
-//        return ResponseEntity.ok(Map.of("status", "Queue reordered on Spotify"));
-//    }
-@GetMapping("/upcoming-tracks/{ownerId}")
-public ResponseEntity<?> getUpcomingTracks(@PathVariable String ownerId) {
-    try {
+    @GetMapping("/upcoming-tracks/{ownerId}")
+    public ResponseEntity<?> getUpcomingTracks(@PathVariable String ownerId) {
+        try {
 
-        UserInfo user = userService.findBySpotifyUserId(ownerId);
-        System.out.println("ownerId: " + ownerId);
-        List<Map<String, Object>> tracks = spotifyService.getUpcomingTracksWithVotes(user);
-        System.out.println("tracks: " + tracks);
+            UserInfo user = userService.findBySpotifyUserId(ownerId);
+            System.out.println("ownerId: " + ownerId);
+            List<Map<String, Object>> tracks = spotifyService.getUpcomingTracksWithVotes(user);
+            System.out.println("tracks: " + tracks);
 
-        return ResponseEntity.ok(Map.of("queue", tracks));
-    } catch (Exception e) {
-        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.ok(Map.of("queue", tracks));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
-}
 
 }
