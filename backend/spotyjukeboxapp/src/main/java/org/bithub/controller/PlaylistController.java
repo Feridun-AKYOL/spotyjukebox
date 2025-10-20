@@ -5,7 +5,6 @@ import org.bithub.model.UserInfo;
 import org.bithub.service.SpotifyService;
 import org.bithub.service.UserService;
 import org.bithub.service.SpotifyRefreshService;
-import org.bithub.service.VoteService;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -14,6 +13,10 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST controller responsible for handling Spotify-related API requests.
+ * Provides endpoints for fetching user playlists, queues, and upcoming tracks.
+ */
 @RestController
 @RequestMapping("/api/spotify")
 @RequiredArgsConstructor
@@ -23,6 +26,13 @@ public class PlaylistController {
     private final SpotifyRefreshService spotifyRefreshService;
     private final SpotifyService spotifyService;
 
+    /**
+     * Retrieves a user's Spotify playlists. If the access token has expired,
+     * it attempts to refresh it and retry the request.
+     *
+     * @param userId the internal user ID in the application
+     * @return a list of playlists or an appropriate error response
+     */
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
         UserInfo user = userService.get(userId);
@@ -35,8 +45,6 @@ public class PlaylistController {
             return fetchPlaylists(user);
 
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("⚠️ Access token expired, refreshing...");
-
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             if (refreshed == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -46,22 +54,27 @@ public class PlaylistController {
             try {
                 return fetchPlaylists(refreshed);
             } catch (Exception retryEx) {
-                retryEx.printStackTrace();
                 return ResponseEntity.internalServerError()
-                        .body(Map.of("error", "Failed to fetch after refresh: " + retryEx.getMessage()));
+                        .body(Map.of("error", "Failed to fetch after token refresh"));
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         }
     }
 
+    /**
+     * Sends a GET request to the Spotify API to retrieve a user's playlists.
+     *
+     * @param user the authenticated user containing a valid access token
+     * @return the Spotify API response body
+     */
     private ResponseEntity<?> fetchPlaylists(UserInfo user) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(user.getAccessToken());
+
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<Map> response = restTemplate.exchange(
@@ -74,6 +87,12 @@ public class PlaylistController {
         return ResponseEntity.ok(response.getBody());
     }
 
+    /**
+     * Retrieves the current playback queue for the specified Spotify user.
+     *
+     * @param ownerId the Spotify user ID
+     * @return the current queue data or an error response
+     */
     @GetMapping("/queue/{ownerId}")
     public ResponseEntity<?> getQueue(@PathVariable String ownerId) {
         try {
@@ -83,24 +102,25 @@ public class PlaylistController {
             Map<String, Object> queueData = spotifyService.getQueue(user);
             return ResponseEntity.ok(queueData);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Failed to fetch Spotify queue");
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to fetch Spotify queue"));
         }
     }
 
+    /**
+     * Retrieves upcoming tracks in the user's Spotify playlist along with vote data.
+     *
+     * @param ownerId the Spotify user ID
+     * @return a list of upcoming tracks enriched with vote information
+     */
     @GetMapping("/upcoming-tracks/{ownerId}")
     public ResponseEntity<?> getUpcomingTracks(@PathVariable String ownerId) {
         try {
-
             UserInfo user = userService.findBySpotifyUserId(ownerId);
-            System.out.println("ownerId: " + ownerId);
             List<Map<String, Object>> tracks = spotifyService.getUpcomingTracksWithVotes(user);
-            System.out.println("tracks: " + tracks);
-
             return ResponseEntity.ok(Map.of("queue", tracks));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
 }

@@ -2,7 +2,6 @@ package org.bithub.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.bithub.model.UserInfo;
-import org.bithub.persistence.UserInfoRepository;
 import org.bithub.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -11,17 +10,20 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Instant;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 
+/**
+ * REST controller for handling Spotify authentication and user data.
+ * Manages OAuth2 login flow, token exchange, and user synchronization.
+ */
 @RestController
 @RequestMapping("/api/auth/spotify")
 @RequiredArgsConstructor
 public class SpotifyAuthController {
 
-  private final UserService userService;
+    private final UserService userService;
 
     @Value("${spotify.client-id}")
     private String clientId;
@@ -32,10 +34,13 @@ public class SpotifyAuthController {
     @Value("${spotify.redirect-uri}")
     private String redirectUri;
 
-
-
     /**
-     * Spotify’dan dönen code’u alır, token değişimini yapar, user kaydını günceller veya oluşturur.
+     * Handles the Spotify callback after user authorization.
+     * Exchanges the authorization code for tokens, retrieves user profile data,
+     * and saves or updates the user in the local database.
+     *
+     * @param body a map containing the Spotify authorization code
+     * @return a JSON response with the user ID and access token
      */
     @PostMapping("/callback")
     public ResponseEntity<?> handleSpotifyCallback(@RequestBody Map<String, String> body) {
@@ -45,7 +50,7 @@ public class SpotifyAuthController {
         }
 
         try {
-            // 1️⃣ Token exchange
+            // Step 1: Exchange authorization code for tokens
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -72,7 +77,7 @@ public class SpotifyAuthController {
             Number expiresIn = (Number) tokenData.get("expires_in");
             String scopeStr = (String) tokenData.get("scope");
 
-            // 2️⃣ Spotify profili al
+            // Step 2: Retrieve user profile from Spotify
             HttpHeaders profileHeaders = new HttpHeaders();
             profileHeaders.setBearerAuth(accessToken);
             HttpEntity<Void> profileRequest = new HttpEntity<>(profileHeaders);
@@ -89,7 +94,7 @@ public class SpotifyAuthController {
             String displayName = (String) profileData.get("display_name");
             String email = (String) profileData.get("email");
 
-            // 3️⃣ Kaydet veya güncelle
+            // Step 3: Save or update user in the local database
             UserInfo user = userService.getById(spotifyUserId);
             if (user == null) {
                 user = new UserInfo();
@@ -114,22 +119,34 @@ public class SpotifyAuthController {
             ));
 
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         }
     }
 
+    /**
+     * Generates the Spotify authorization URL with required scopes.
+     * Used to initiate the user login process.
+     *
+     * @return a JSON object containing the Spotify authorization URL
+     */
     @GetMapping("/login")
     public ResponseEntity<?> redirectToSpotifyAuth() {
         if (clientId == null || redirectUri == null) {
-            System.err.println("❌ Spotify environment variables missing!");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Spotify clientId or redirectUri not configured"));
         }
 
-        String scopes = "user-read-email user-read-private playlist-read-private" +
-                " user-read-playback-state user-modify-playback-state playlist-modify-private playlist-modify-public";
+        String scopes = String.join(" ",
+                "user-read-email",
+                "user-read-private",
+                "playlist-read-private",
+                "user-read-playback-state",
+                "user-modify-playback-state",
+                "playlist-modify-private",
+                "playlist-modify-public"
+        );
+
         String authorizeUrl = "https://accounts.spotify.com/authorize" +
                 "?client_id=" + clientId +
                 "&response_type=code" +
@@ -140,6 +157,12 @@ public class SpotifyAuthController {
         return ResponseEntity.ok(Map.of("authorizeUrl", authorizeUrl));
     }
 
+    /**
+     * Retrieves stored Spotify user information from the database.
+     *
+     * @param userId the internal user ID in the application
+     * @return a JSON response containing user details
+     */
     @GetMapping("/me/{userId}")
     public ResponseEntity<?> getSpotifyUser(@PathVariable String userId) {
         UserInfo user = userService.get(userId);
