@@ -5,7 +5,8 @@ interface User {
   email?: string;
   displayName?: string;
   spotifyLinked?: boolean;
-  access_token:string
+  access_token:string;
+  jukeboxPlaylistId:string;
 }
 
 interface AuthContextProps {

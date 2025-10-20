@@ -49,9 +49,29 @@ public class SpotifyDeviceController {
             }
 
             UserInfo user = userService.getUserById(userId);
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            }
+
+            // 🎵 Playlist çalmayı başlat
             spotifyService.playOnDevice(user, deviceId, playlistId);
 
-            return ResponseEntity.ok(Map.of("status", "playing"));
+            // ✅ Kullanıcıya bu playlist'i Jukebox olarak bağla
+            if (user.getJukeboxPlaylistId() == null || user.getJukeboxPlaylistId().isEmpty()) {
+                user.setJukeboxPlaylistId(playlistId);
+                userService.save(user);
+                System.out.println("✅ Linked Jukebox playlist to user: " + playlistId);
+            } else if (!user.getJukeboxPlaylistId().equals(playlistId)) {
+                // Eğer kullanıcı başka bir listeyi seçtiyse, güncelle
+                user.setJukeboxPlaylistId(playlistId);
+                userService.save(user);
+                System.out.println("🔁 Updated Jukebox playlist to: " + playlistId);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "playing",
+                    "linkedPlaylist", playlistId
+            ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Failed to play playlist");

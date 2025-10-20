@@ -17,6 +17,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -325,6 +326,17 @@ public class SpotifyService {
                 return; // ✅ Sessizce geç
             }
 
+            // 1️⃣ Şu an çalan şarkıyı bul
+            Map<String, Object> nowPlaying = getNowPlaying(user);
+            String currentTrackUri = null;
+            String currentTrackId = null;
+
+            if (nowPlaying != null && nowPlaying.containsKey("item")) {
+                Map<String, Object> item = (Map<String, Object>) nowPlaying.get("item");
+                currentTrackId = (String) item.get("id");
+                currentTrackUri = (String) item.get("uri");
+            }
+
             // 1️⃣ Mevcut playlist şarkılarını çek
             List<Map<String, Object>> currentTracks = getPlaylistTracks(user, playlistId);
 
@@ -341,14 +353,49 @@ public class SpotifyService {
                 return;
             }
 
+            // 4️⃣ Şu an çalan şarkıyı en başta tut
+            if (currentTrackUri != null) {
+                orderedUris.remove(currentTrackUri); // varsa kaldır
+                orderedUris.add(0, currentTrackUri); // başa ekle
+            }
+
             // 3️⃣ Playlist'i güncelle
             replacePlaylistTracks(user, playlistId, orderedUris);
-
             System.out.println("✅ Jukebox playlist updated: " + orderedUris.size() + " tracks reordered");
+
 
         } catch (Exception e) {
             System.err.println("❌ Failed to update jukebox playlist for: " + user.getSpotifyUserId());
             e.printStackTrace();
+        }
+    }
+
+    private String getActiveDeviceId(UserInfo user) {
+        try {
+            String url = "https://api.spotify.com/v1/me/player/devices";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + user.getAccessToken());
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            Map<String, Object> devices = response.getBody();
+
+            if (devices == null || !devices.containsKey("devices")) {
+                return null;
+            }
+
+            List<Map<String, Object>> deviceList = (List<Map<String, Object>>) devices.get("devices");
+            for (Map<String, Object> device : deviceList) {
+                if (device.containsKey("is_active") && (Boolean) device.get("is_active")) {
+                    return (String) device.get("id");
+                }
+            }
+
+            return null;
+        } catch (Exception e) {
+            System.err.println("❌ Failed to get active device ID for: " + user.getSpotifyUserId());
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -359,6 +406,12 @@ public class SpotifyService {
         // Oy sayılarını ve cooldown listesini çek
         Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
         List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+
+        // Normalize helper
+        Function<String, String> normalize = ref -> {
+            if (ref == null) return null;
+            return ref.startsWith("spotify:track:") ? ref.substring("spotify:track:".length()) : ref;
+        };
 
         // Şarkıları 3 kategoriye ayır
         List<Map<String, Object>> votedTracks = new ArrayList<>();
@@ -371,25 +424,33 @@ public class SpotifyService {
 
             if (trackId == null || uri == null) continue;
 
-            if (cooldownTracks.contains(trackId)) {
-                cooldownTracksInPlaylist.add(track); // Son 3 çalan → en sona
-            } else if (voteCounts.containsKey(trackId) && voteCounts.get(trackId) > 0) {
-                track.put("votes", voteCounts.get(trackId));
-                votedTracks.add(track); // Oylanmış → vote'a göre sırala
+            String normalizedId = normalize.apply(trackId);
+            String normalizedUri = normalize.apply(uri);
+
+            boolean isCooldown = cooldownTracks.stream()
+                    .anyMatch(t -> t.equals(normalizedId) || t.equals(normalizedUri));
+
+            Long votes = voteCounts.getOrDefault(normalizedId,
+                    voteCounts.getOrDefault(normalizedUri, 0L));
+
+            if (isCooldown) {
+                cooldownTracksInPlaylist.add(track);
+            } else if (votes > 0) {
+                track.put("votes", votes);
+                votedTracks.add(track);
             } else {
                 track.put("votes", 0L);
-                unvotedTracks.add(track); // Oylanmamış → ortada
+                unvotedTracks.add(track);
             }
         }
 
-        // Oylanmış şarkıları vote sayısına göre sırala (çok oy → öne)
-        votedTracks.sort((a, b) -> {
-            long v1 = (long) a.getOrDefault("votes", 0L);
-            long v2 = (long) b.getOrDefault("votes", 0L);
-            return Long.compare(v2, v1);
-        });
+        // Oylanmış şarkıları oy sayısına göre sırala (çok oy → öne)
+        votedTracks.sort((a, b) -> Long.compare(
+                (long) b.getOrDefault("votes", 0L),
+                (long) a.getOrDefault("votes", 0L)
+        ));
 
-        // Final sıralama: [Oylanmış (çok oy öne)] + [Oylanmamış] + [Cooldown]
+        // Final sıralama: [Oylanmış] + [Oylanmamış] + [Cooldown]
         List<String> orderedUris = new ArrayList<>();
         votedTracks.forEach(t -> orderedUris.add((String) t.get("uri")));
         unvotedTracks.forEach(t -> orderedUris.add((String) t.get("uri")));
@@ -401,6 +462,7 @@ public class SpotifyService {
 
         return orderedUris;
     }
+
 
     /**
      * 📝 Playlist'in tüm şarkılarını değiştirir
@@ -455,5 +517,154 @@ public class SpotifyService {
 
         playOnDevice(user, deviceId, playlistId);
         System.out.println("🎵 Jukebox playlist started on device: " + deviceId);
+    }
+
+    /**
+     * 🗳️ En çok oy alan şarkıyı queue'nun başına ekler
+     */
+    public void reorderQueueByVotes(UserInfo user) {
+        try {
+            String playlistId = user.getJukeboxPlaylistId();
+            if (playlistId == null || playlistId.isEmpty()) {
+                System.out.println("⏸️ No active jukebox");
+                return;
+            }
+
+            // 1️⃣ Şu an çalan şarkıyı al
+            Map<String, Object> nowPlaying = getNowPlaying(user);
+            if (nowPlaying == null || !nowPlaying.containsKey("item")) {
+                System.out.println("⚠️ Nothing playing");
+                return;
+            }
+
+            String currentTrackId = (String) ((Map) nowPlaying.get("item")).get("id");
+
+            // 2️⃣ Playlist şarkılarını çek
+            List<Map<String, Object>> playlistTracks = getPlaylistTracks(user, playlistId);
+            if (playlistTracks.isEmpty()) {
+                return;
+            }
+
+            // 3️⃣ Oyları al
+            Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
+            List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+
+            // 4️⃣ Şu an çalanı ve cooldown'dakileri çıkar
+            List<Map<String, Object>> votableTracks = playlistTracks.stream()
+                    .filter(track -> {
+                        String trackId = (String) track.get("id");
+                        return trackId != null
+                                && !trackId.equals(currentTrackId)
+                                && !cooldownTracks.contains(trackId);
+                    })
+                    .collect(Collectors.toList());
+
+            if (votableTracks.isEmpty()) {
+                System.out.println("⚠️ No votable tracks");
+                return;
+            }
+
+            // 5️⃣ En çok oy alan şarkıyı bul
+            Map<String, Object> topTrack = votableTracks.stream()
+                    .max((a, b) -> {
+                        String idA = (String) a.get("id");
+                        String idB = (String) b.get("id");
+                        long voteA = voteCounts.getOrDefault(idA, 0L);
+                        long voteB = voteCounts.getOrDefault(idB, 0L);
+                        return Long.compare(voteA, voteB);
+                    })
+                    .orElse(null);
+
+            if (topTrack == null) {
+                return;
+            }
+
+            String topTrackId = (String) topTrack.get("id");
+            long topVotes = voteCounts.getOrDefault(topTrackId, 0L);
+
+            // 6️⃣ Sadece oy varsa queue'ya ekle
+            if (topVotes > 0) {
+                addToQueue(user, topTrackId);
+                System.out.println("✅ Added top voted track to queue: " + topTrack.get("name") + " (" + topVotes + " votes)");
+            } else {
+                System.out.println("⚠️ No votes yet");
+            }
+
+        } catch (Exception e) {
+            System.err.println("❌ Failed to reorder queue");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 🎵 Queue'ya şarkı ekler
+     */
+    private void addToQueue(UserInfo user, String trackId) {
+        String url = "https://api.spotify.com/v1/me/player/queue?uri=spotify:track:" + trackId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + user.getAccessToken());
+
+        try {
+            restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(headers), Void.class);
+        } catch (HttpClientErrorException.Unauthorized e) {
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            addToQueue(refreshed, trackId);
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to add to queue");
+        }
+    }
+
+    /**
+     * 🎵 Playlist'in şarkılarını oy bilgisiyle döndürür (Client için)
+     */
+    public List<Map<String, Object>> getUpcomingTracksWithVotes(UserInfo user) {
+        try {
+            String playlistId = user.getJukeboxPlaylistId();
+            System.out.println("playlistId: " + playlistId);
+            if (playlistId == null) {
+                return Collections.emptyList();
+            }
+
+            // 1️⃣ Şu an çalan şarkıyı bul
+            Map<String, Object> nowPlaying = getNowPlaying(user);
+            String currentTrackId = null;
+
+            if (nowPlaying != null && nowPlaying.containsKey("item")) {
+                currentTrackId = (String) ((Map) nowPlaying.get("item")).get("id");
+            }
+
+            // 2️⃣ Playlist şarkılarını çek
+            List<Map<String, Object>> tracks = getPlaylistTracks(user, playlistId);
+
+            // 3️⃣ Şu an çalanı çıkar
+            final String currentId = currentTrackId;
+            List<Map<String, Object>> upNext = tracks.stream()
+                    .filter(track -> {
+                        String trackId = (String) track.get("id");
+                        return trackId != null && !trackId.equals(currentId);
+                    })
+                    .collect(Collectors.toList());
+
+            // 4️⃣ Oy bilgilerini ekle
+            Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
+            upNext.forEach(track -> {
+                String trackId = (String) track.get("id");
+                track.put("votes", votes.getOrDefault(trackId, 0L));
+            });
+
+            // 5️⃣ Oylamaya göre sırala (sadece görsel için)
+            upNext.sort((a, b) -> {
+                long voteA = (long) a.getOrDefault("votes", 0L);
+                long voteB = (long) b.getOrDefault("votes", 0L);
+                return Long.compare(voteB, voteA); // Çok oy → öne
+            });
+
+            return upNext;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
     }
 }

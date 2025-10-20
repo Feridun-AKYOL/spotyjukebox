@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { log } from "console";
 
 interface Track {
   id: string;
@@ -24,7 +25,6 @@ export default function ClientSessionPage() {
   const [voted, setVoted] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
-  const [previousTrackId, setPreviousTrackId] = useState<string | null>(null);
 
 
 
@@ -123,33 +123,57 @@ const fetchNowPlaying = async () => {
 };
 
 
+    // const fetchQueue = async () => {
+    //   try {
+    //     const res = await axios.get(
+    //       `http://localhost:8080/api/spotify/queue/${ownerId}`
+    //     );
+    //     const queue = res.data.queue || [];
+
+    //     const uniqueTracks = new Map<string, any>();
+    //     queue.forEach((track: any) => {
+    //       if (track.id && !uniqueTracks.has(track.id)) {
+    //         uniqueTracks.set(track.id, track);
+    //       }
+    //     });
+
+    //     setUpNext(
+    //       Array.from(uniqueTracks.values()).map((track: any) => ({
+    //         id: track.id,
+    //         name: track.name,
+    //         artist: track.artists.map((a: any) => a.name).join(", "),
+    //         albumArt: track.album.images[0]?.url || "",
+    //         votes:0, // BURADA GUNCEL OLARAK OYLARI CEKMELI???
+    //       }))
+    //     );
+    //   } catch (err) {
+    //     console.error("Failed to fetch queue:", err);
+    //   }
+    // };
+
+
     const fetchQueue = async () => {
-      try {
-        const res = await axios.get(
-          `http://localhost:8080/api/spotify/queue/${ownerId}`
-        );
-        const queue = res.data.queue || [];
+  try {
+    // ✅ Playlist şarkılarını oy bilgisiyle çek
+    const res = await axios.get(
+      `http://localhost:8080/api/spotify/upcoming-tracks/${ownerId}`
+    );
+    console.log(res);
+    const queue = res.data.queue || [];
 
-        const uniqueTracks = new Map<string, any>();
-        queue.forEach((track: any) => {
-          if (track.id && !uniqueTracks.has(track.id)) {
-            uniqueTracks.set(track.id, track);
-          }
-        });
-
-        setUpNext(
-          Array.from(uniqueTracks.values()).map((track: any) => ({
-            id: track.id,
-            name: track.name,
-            artist: track.artists.map((a: any) => a.name).join(", "),
-            albumArt: track.album.images[0]?.url || "",
-            votes: 0,
-          }))
-        );
-      } catch (err) {
-        console.error("Failed to fetch queue:", err);
-      }
-    };
+    setUpNext(
+      queue.map((track: any) => ({
+        id: track.id,
+        name: track.name,
+        artist: track.artists?.map((a: any) => a.name).join(", ") || "Unknown",
+        albumArt: track.album?.images?.[0]?.url || "",
+        votes: track.votes || 0, // ✅ Backend'den gelen güncel oy
+      }))
+    );
+  } catch (err) {
+    console.error("Failed to fetch queue:", err);
+  }
+};
 
     fetchNowPlaying();
     fetchQueue();

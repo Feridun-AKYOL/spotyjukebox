@@ -101,6 +101,19 @@ public class PlaylistController {
 //
 //        return ResponseEntity.ok(Map.of("status", "Queue reordered on Spotify"));
 //    }
+@GetMapping("/upcoming-tracks/{ownerId}")
+public ResponseEntity<?> getUpcomingTracks(@PathVariable String ownerId) {
+    try {
 
+        UserInfo user = userService.findBySpotifyUserId(ownerId);
+        System.out.println("ownerId: " + ownerId);
+        List<Map<String, Object>> tracks = spotifyService.getUpcomingTracksWithVotes(user);
+        System.out.println("tracks: " + tracks);
+
+        return ResponseEntity.ok(Map.of("queue", tracks));
+    } catch (Exception e) {
+        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+    }
+}
 
 }

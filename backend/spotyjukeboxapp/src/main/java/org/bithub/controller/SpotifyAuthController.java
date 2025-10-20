@@ -129,7 +129,7 @@ public class SpotifyAuthController {
         }
 
         String scopes = "user-read-email user-read-private playlist-read-private" +
-                " user-read-playback-state user-modify-playback-state";
+                " user-read-playback-state user-modify-playback-state playlist-modify-private playlist-modify-public";
         String authorizeUrl = "https://accounts.spotify.com/authorize" +
                 "?client_id=" + clientId +
                 "&response_type=code" +
