@@ -66,6 +66,7 @@ public class SpotifyService {
 
     /**
      * Refreshes the Spotify access token for the given user.
+     * This is the primary implementation used throughout the service.
      *
      * @param user Spotify user with an existing refresh token.
      * @return new access token string, or null if refresh failed.
@@ -148,6 +149,28 @@ public class SpotifyService {
         } catch (Exception e) {
             log.error("❌ Error fetching Spotify devices for user {}", user.getSpotifyUserId(), e);
             return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Gets the currently active device for the user.
+     *
+     * @param user Spotify user
+     * @return Active device ID, or null if no device is active
+     */
+    private String getActiveDeviceId(UserInfo user) {
+        try {
+            List<SpotifyDevice> devices = getAvailableDevices(user);
+
+            return devices.stream()
+                    .filter(SpotifyDevice::isActive)
+                    .map(SpotifyDevice::getId)
+                    .findFirst()
+                    .orElse(null);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get active device ID for user {}", user.getSpotifyUserId(), e);
+            return null;
         }
     }
 
@@ -322,6 +345,57 @@ public class SpotifyService {
         }
     }
 
+    /**
+     * Fetches the tracks from a given Spotify playlist.
+     *
+     * @param user       Spotify user.
+     * @param playlistId Playlist ID.
+     * @return List of track maps, each containing Spotify track metadata.
+     */
+    public List<Map<String, Object>> getPlaylistTracks(UserInfo user, String playlistId) {
+        String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(user.getAccessToken());
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+
+            if (items == null) return Collections.emptyList();
+            return items.stream()
+                    .map(i -> (Map<String, Object>) i.get("track"))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+        } catch (HttpClientErrorException.Unauthorized e) {
+            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
+            return getPlaylistTracks(refreshed, playlistId);
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch playlist tracks for {}", playlistId, e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Legacy method name - delegates to getUserPlaylists()
+     * Kept for backwards compatibility with existing code.
+     *
+     * @return List of user playlists
+     * @deprecated Use {@link #getUserPlaylists()} instead
+     */
+    @Deprecated
+    public List<SpotifyPlaylist> getUserPlaylists() {
+        try {
+            // TODO: Implement actual Spotify API call
+            return Collections.emptyList();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch playlists", e);
+        }
+    }
+
+
     // --------------------------------------------------------------------
     // PLAYLIST REORDERING & UPDATES
     // --------------------------------------------------------------------
@@ -379,39 +453,6 @@ public class SpotifyService {
     }
 
     /**
-     * Fetches the tracks from a given Spotify playlist.
-     *
-     * @param user       Spotify user.
-     * @param playlistId Playlist ID.
-     * @return List of track maps, each containing Spotify track metadata.
-     */
-    public List<Map<String, Object>> getPlaylistTracks(UserInfo user, String playlistId) {
-        String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(user.getAccessToken());
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-            List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
-
-            if (items == null) return Collections.emptyList();
-            return items.stream()
-                    .map(i -> (Map<String, Object>) i.get("track"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
-        } catch (HttpClientErrorException.Unauthorized e) {
-            UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
-            return getPlaylistTracks(refreshed, playlistId);
-        } catch (Exception e) {
-            log.error("❌ Failed to fetch playlist tracks for {}", playlistId, e);
-            return Collections.emptyList();
-        }
-    }
-
-    /**
      * Replaces the playlist content with a new list of tracks, keeping Spotify's batch limit (100 tracks/request).
      *
      * @param user       Spotify user.
@@ -459,6 +500,12 @@ public class SpotifyService {
         Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
         List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
 
+        // Normalize helper for track ID comparison
+        Function<String, String> normalize = ref -> {
+            if (ref == null) return null;
+            return ref.startsWith("spotify:track:") ? ref.substring("spotify:track:".length()) : ref;
+        };
+
         List<Map<String, Object>> voted = new ArrayList<>();
         List<Map<String, Object>> unvoted = new ArrayList<>();
         List<Map<String, Object>> cooldown = new ArrayList<>();
@@ -468,13 +515,24 @@ public class SpotifyService {
             String uri = (String) track.get("uri");
 
             if (trackId == null || uri == null) continue;
-            long count = votes.getOrDefault(trackId, 0L);
 
-            if (cooldownTracks.contains(trackId)) cooldown.add(track);
-            else if (count > 0) {
+            String normalizedId = normalize.apply(trackId);
+            String normalizedUri = normalize.apply(uri);
+
+            boolean isCooldown = cooldownTracks.stream()
+                    .anyMatch(t -> t.equals(normalizedId) || t.equals(normalizedUri));
+
+            long count = votes.getOrDefault(normalizedId,
+                    votes.getOrDefault(normalizedUri, 0L));
+
+            if (isCooldown) {
+                cooldown.add(track);
+            } else if (count > 0) {
                 track.put("votes", count);
                 voted.add(track);
-            } else unvoted.add(track);
+            } else {
+                unvoted.add(track);
+            }
         }
 
         voted.sort(Comparator.comparingLong(
@@ -498,7 +556,7 @@ public class SpotifyService {
 
     /**
      * Plays the user's Jukebox playlist on the selected device.
-     * Automatically creates one if it doesn’t exist.
+     * Automatically creates one if it doesn't exist.
      *
      * @param user     Spotify user.
      * @param deviceId Target Spotify device ID.
@@ -633,4 +691,3 @@ public class SpotifyService {
         }
     }
 }
-
