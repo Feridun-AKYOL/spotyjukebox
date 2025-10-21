@@ -50,11 +50,12 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
      * Useful for periodic cleanup to prevent data buildup.
      *
      * @param threshold the cutoff time for old votes to be deleted
+     * @return
      */
     @Modifying
     @Transactional
     @Query("DELETE FROM Vote v WHERE v.createdAt < :threshold")
-    void deleteOldVotes(@Param("threshold") LocalDateTime threshold);
+    int deleteOldVotes(@Param("threshold") LocalDateTime threshold);
 
     /**
      * Finds all votes associated with a specific track within a Jukebox session.

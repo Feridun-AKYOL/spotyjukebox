@@ -1,9 +1,9 @@
 package org.bithub.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bithub.model.SpotifyDevice;
 import org.bithub.model.SpotifyPlaylist;
-import org.bithub.model.TrackVote;
 import org.bithub.model.UserInfo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -12,21 +12,44 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * SpotifyService
+ * ------------------------------------------------------------------------
+ * Handles all Spotify API integrations, including:
+ *   • Authentication and token refresh
+ *   • Device management
+ *   • Playlist creation, playback, and dynamic reordering
+ *   • Jukebox functionality based on live user votes
+ *
+ * Collaborating Services:
+ *   - {@link SpotifyRefreshService} for token refresh
+ *   - {@link VoteService} for vote and cooldown tracking
+ *   - {@link UserService} for saving Spotify user data
+ *
+ * This class is central to the dynamic Spotify Jukebox feature,
+ * which reorders and plays songs based on audience votes.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SpotifyService {
 
+    // --------------------------------------------------------------------
+    // Dependencies
+    // --------------------------------------------------------------------
     private final SpotifyRefreshService spotifyRefreshService;
     private final VoteService voteService;
+    private final RestTemplate restTemplate;
+    private final UserService userService;
 
+    // --------------------------------------------------------------------
+    // Configuration
+    // --------------------------------------------------------------------
     @Value("${spotify.api.url}")
     private String spotifyApiUrl;
 
@@ -36,18 +59,17 @@ public class SpotifyService {
     @Value("${spotify.client-secret}")
     private String clientSecret;
 
-    private final RestTemplate restTemplate;
-    private final UserService userService;
 
-    public List<SpotifyPlaylist> getUserPlaylists() {
-        try {
-            // TODO: Implement actual Spotify API call
-            return Collections.emptyList();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch playlists", e);
-        }
-    }
+    // --------------------------------------------------------------------
+    // AUTHENTICATION
+    // --------------------------------------------------------------------
 
+    /**
+     * Refreshes the Spotify access token for the given user.
+     *
+     * @param user Spotify user with an existing refresh token.
+     * @return new access token string, or null if refresh failed.
+     */
     public String refreshAccessToken(UserInfo user) {
         String url = "https://accounts.spotify.com/api/token";
 
@@ -59,192 +81,217 @@ public class SpotifyService {
         params.add("grant_type", "refresh_token");
         params.add("refresh_token", user.getRefreshToken());
 
-        RestTemplate restTemplate = new RestTemplate();
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
 
-        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-            String newAccessToken = (String) response.getBody().get("access_token");
-            Number expiresIn = (Number) response.getBody().get("expires_in");
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String newToken = (String) response.getBody().get("access_token");
+                Number expiresIn = (Number) response.getBody().get("expires_in");
 
-            user.setAccessToken(newAccessToken);
-            user.setExpiresIn(expiresIn.longValue());
-            userService.save(user);
+                user.setAccessToken(newToken);
+                user.setExpiresIn(expiresIn.longValue());
+                userService.save(user);
 
-            System.out.println("✅ Spotify token refreshed for user: " + user.getSpotifyUserId());
-            return newAccessToken;
+                log.info("✅ Refreshed Spotify token for user {}", user.getSpotifyUserId());
+                return newToken;
+            }
+
+            log.error("❌ Spotify token refresh failed for user {}", user.getSpotifyUserId());
+            return null;
+
+        } catch (Exception e) {
+            log.error("❌ Error refreshing token for user {}", user.getSpotifyUserId(), e);
+            return null;
         }
-
-        System.err.println("❌ Spotify token refresh failed for user: " + user.getSpotifyUserId());
-        return null;
     }
 
+
+    // --------------------------------------------------------------------
+    // DEVICES
+    // --------------------------------------------------------------------
+
+    /**
+     * Fetches all available playback devices for a user.
+     *
+     * @param user Spotify user with valid access token.
+     * @return List of {@link SpotifyDevice} objects.
+     */
     public List<SpotifyDevice> getAvailableDevices(UserInfo user) {
-        String url = "https://api.spotify.com/v1/me/player/devices";
+        String url = spotifyApiUrl + "/me/player/devices";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            System.out.println("Spotify devices API body: " + response.getBody());
+            List<Map<String, Object>> devicesData = (List<Map<String, Object>>) response.getBody().get("devices");
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> devicesData = (List<Map<String, Object>>) response.getBody().get("devices");
+            if (devicesData == null) return Collections.emptyList();
 
-                return devicesData.stream()
-                        .map(d -> new SpotifyDevice(
-                                (String) d.get("id"),
-                                (String) d.get("name"),
-                                (String) d.get("type"),
-                                Boolean.TRUE.equals(d.get("is_active"))
-                        ))
-                        .collect(Collectors.toList());
-            } else {
-                throw new RuntimeException("Failed to fetch devices from Spotify API");
-            }
+            return devicesData.stream()
+                    .map(d -> new SpotifyDevice(
+                            (String) d.get("id"),
+                            (String) d.get("name"),
+                            (String) d.get("type"),
+                            Boolean.TRUE.equals(d.get("is_active"))
+                    ))
+                    .collect(Collectors.toList());
 
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("Access token expired, refreshing...");
-            System.out.println("Old token: " + user.getAccessToken());
+            log.warn("Access token expired while fetching devices. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
-            System.out.println("New token: " + refreshed.getAccessToken());
-
-            if (refreshed == null || refreshed.getAccessToken() == null) {
-                throw new RuntimeException("Failed to refresh access token");
-            }
             return getAvailableDevices(refreshed);
+
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error fetching Spotify devices");
+            log.error("❌ Error fetching Spotify devices for user {}", user.getSpotifyUserId(), e);
+            return Collections.emptyList();
         }
     }
 
+
+    // --------------------------------------------------------------------
+    // PLAYBACK
+    // --------------------------------------------------------------------
+
+    /**
+     * Starts playing the given playlist on the specified device.
+     *
+     * @param user       Spotify user.
+     * @param deviceId   Target device ID.
+     * @param playlistId Playlist to play.
+     */
     public void playOnDevice(UserInfo user, String deviceId, String playlistId) {
-        String url = "https://api.spotify.com/v1/me/player/play?device_id=" + deviceId;
+        String url = spotifyApiUrl + "/me/player/play?device_id=" + deviceId;
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> body = Map.of(
-                "context_uri", "spotify:playlist:" + playlistId
-        );
-
+        Map<String, Object> body = Map.of("context_uri", "spotify:playlist:" + playlistId);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         try {
             restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
-            System.out.println("🎵 Playing playlist " + playlistId + " on device " + deviceId);
+            log.info("🎵 Playing playlist {} on device {}", playlistId, deviceId);
+
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("Access token expired. Refreshing...");
+            log.warn("Access token expired during playback. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             playOnDevice(refreshed, deviceId, playlistId);
+
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Failed to start playback");
+            log.error("❌ Failed to start playback on device {}", deviceId, e);
         }
     }
 
+
+    // --------------------------------------------------------------------
+    // NOW PLAYING / QUEUE
+    // --------------------------------------------------------------------
+
+    /**
+     * Retrieves the currently playing track.
+     *
+     * @param user Spotify user.
+     * @return Response map from Spotify API or {"is_playing": false} if none.
+     */
     public Map<String, Object> getNowPlaying(UserInfo user) {
-        String url = "https://api.spotify.com/v1/me/player/currently-playing";
+        String url = spotifyApiUrl + "/me/player/currently-playing";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 return response.getBody();
-            } else {
-                return Map.of("is_playing", false);
             }
+            return Map.of("is_playing", false);
+
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("Access token expired. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             return getNowPlaying(refreshed);
+
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error fetching now playing");
+            log.error("❌ Error fetching 'Now Playing' for user {}", user.getSpotifyUserId(), e);
+            return Map.of("error", "Failed to fetch currently playing track");
         }
     }
 
+    /**
+     * Retrieves and sorts the Spotify queue based on votes and cooldowns.
+     *
+     * @param user Spotify user.
+     * @return Map containing the queue, ordered by votes.
+     */
     public Map<String, Object> getQueue(UserInfo user) {
-        String url = "https://api.spotify.com/v1/me/player/queue";
+        String url = spotifyApiUrl + "/me/player/queue";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body == null) return Map.of();
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> body = response.getBody();
-                List<Map<String, Object>> queue = (List<Map<String, Object>>) body.get("queue");
+            List<Map<String, Object>> queue = (List<Map<String, Object>>) body.get("queue");
+            if (queue == null) queue = new ArrayList<>();
 
-                if (queue == null || queue.isEmpty()) {
-                    System.out.println("No tracks found in queue");
-                    return body;
-                }
+            Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
+            List<String> cooldown = voteService.getCooldownTracks(user.getSpotifyUserId());
 
-                // 🔹 Oy sayısını çek (sadece 1 saat içindekiler)
-                Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
-                List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+            // add votes
+            queue.forEach(track -> {
+                String id = (String) track.get("id");
+                track.put("votes", votes.getOrDefault(id, 0L));
+            });
 
-                // 🔹 Oy bilgilerini queue'ya ekle
-                queue.forEach(track -> {
-                    String trackId = (String) track.get("id");
-                    long votes = voteCounts.getOrDefault(trackId, 0L);
-                    track.put("votes", votes);
-                });
+            // sort by votes descending
+            queue.sort(Comparator.comparingLong((Map<String, Object> t) ->
+                    (long) t.getOrDefault("votes", 0L)).reversed());
 
-                // 🔹 Oy sayısına göre sırala (çok oyu olan öne)
-                queue.sort((a, b) -> {
-                    long v1 = (long) a.getOrDefault("votes", 0L);
-                    long v2 = (long) b.getOrDefault("votes", 0L);
-                    return Long.compare(v2, v1);
-                });
+            // cooldown to bottom
+            queue.sort((a, b) -> {
+                boolean aCool = cooldown.contains(a.get("id"));
+                boolean bCool = cooldown.contains(b.get("id"));
+                return Boolean.compare(aCool, bCool);
+            });
 
-                // 🔹 Cooldown'daki parçaları (son 3 çalan) sona at
-                queue.sort((a, b) -> {
-                    boolean aCooldown = cooldownTracks.contains(a.get("id"));
-                    boolean bCooldown = cooldownTracks.contains(b.get("id"));
-                    if (aCooldown && !bCooldown) return 1;
-                    if (!aCooldown && bCooldown) return -1;
-                    return 0;
-                });
-
-                body.put("queue", queue);
-                return body;
-            } else {
-                throw new RuntimeException("No queue data returned from Spotify");
-            }
+            body.put("queue", queue);
+            return body;
 
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("Access token expired. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             return getQueue(refreshed);
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error fetching Spotify queue");
+            log.error("❌ Failed to fetch Spotify queue for user {}", user.getSpotifyUserId(), e);
+            return Map.of("error", "Queue unavailable");
         }
     }
 
-    // ========== YÖNTEM 3: PLAYLIST BAZLI JUKEBOX ==========
+
+    // --------------------------------------------------------------------
+    // PLAYLIST MANAGEMENT
+    // --------------------------------------------------------------------
 
     /**
-     * 🎵 Kullanıcı için özel Jukebox playlist'i oluşturur
+     * Creates a new private "Jukebox" playlist for the user.
+     *
+     * @param user Spotify user.
+     * @return The created playlist ID.
      */
     public String createJukeboxPlaylist(UserInfo user) {
-        String url = "https://api.spotify.com/v1/users/" + user.getSpotifyUserId() + "/playlists";
+        String url = spotifyApiUrl + "/users/" + user.getSpotifyUserId() + "/playlists";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> body = Map.of(
@@ -257,353 +304,286 @@ public class SpotifyService {
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            String playlistId = (String) response.getBody().get("id");
 
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String playlistId = (String) response.getBody().get("id");
-                System.out.println("✅ Jukebox playlist created: " + playlistId);
+            user.setJukeboxPlaylistId(playlistId);
+            userService.save(user);
 
-                // Kullanıcının jukebox playlist ID'sini kaydet
-                user.setJukeboxPlaylistId(playlistId);
-                userService.save(user);
-
-                return playlistId;
-            } else {
-                throw new RuntimeException("Failed to create playlist");
-            }
+            log.info("✅ Created Jukebox playlist for user {}", user.getSpotifyUserId());
+            return playlistId;
 
         } catch (HttpClientErrorException.Unauthorized e) {
-            System.out.println("Access token expired. Refreshing...");
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             return createJukeboxPlaylist(refreshed);
+
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error creating Jukebox playlist");
+            log.error("❌ Failed to create Jukebox playlist for {}", user.getSpotifyUserId(), e);
+            throw new RuntimeException("Playlist creation failed");
+        }
+    }
+
+    // --------------------------------------------------------------------
+    // PLAYLIST REORDERING & UPDATES
+    // --------------------------------------------------------------------
+
+    /**
+     * Updates the user's Jukebox playlist order based on current votes.
+     * Keeps the currently playing song at the top.
+     *
+     * @param user Spotify user whose Jukebox playlist will be updated.
+     */
+    public void updateJukeboxPlaylist(UserInfo user) {
+        try {
+            String playlistId = user.getJukeboxPlaylistId();
+            if (playlistId == null || playlistId.isBlank()) {
+                log.info("⏸️ No active Jukebox for user {}", user.getSpotifyUserId());
+                return;
+            }
+
+            // 1️⃣ Fetch currently playing track
+            Map<String, Object> nowPlaying = getNowPlaying(user);
+            String currentUri = null, currentId = null;
+            if (nowPlaying != null && nowPlaying.containsKey("item")) {
+                Map<String, Object> item = (Map<String, Object>) nowPlaying.get("item");
+                currentId = (String) item.get("id");
+                currentUri = (String) item.get("uri");
+            }
+
+            // 2️⃣ Fetch playlist tracks
+            List<Map<String, Object>> currentTracks = getPlaylistTracks(user, playlistId);
+            if (currentTracks.isEmpty()) {
+                log.warn("⚠️ Jukebox playlist is empty for {}", user.getSpotifyUserId());
+                return;
+            }
+
+            // 3️⃣ Sort playlist by votes
+            List<String> orderedUris = sortPlaylistByVotes(user, currentTracks);
+            if (orderedUris.isEmpty()) {
+                log.warn("⚠️ No valid tracks to reorder for {}", user.getSpotifyUserId());
+                return;
+            }
+
+            // 4️⃣ Keep currently playing track first
+            if (currentUri != null) {
+                orderedUris.remove(currentUri);
+                orderedUris.add(0, currentUri);
+            }
+
+            // 5️⃣ Replace playlist content
+            replacePlaylistTracks(user, playlistId, orderedUris);
+            log.info("✅ Updated Jukebox playlist order for {}", user.getSpotifyUserId());
+
+        } catch (Exception e) {
+            log.error("❌ Failed to update Jukebox playlist for {}", user.getSpotifyUserId(), e);
         }
     }
 
     /**
-     * 🎵 Mevcut playlist'in şarkılarını çeker
+     * Fetches the tracks from a given Spotify playlist.
+     *
+     * @param user       Spotify user.
+     * @param playlistId Playlist ID.
+     * @return List of track maps, each containing Spotify track metadata.
      */
     public List<Map<String, Object>> getPlaylistTracks(UserInfo user, String playlistId) {
-        String url = "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks";
+        String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> items = (List) response.getBody().get("items");
-
-                return items.stream()
-                        .map(item -> (Map<String, Object>) item.get("track"))
-                        .collect(Collectors.toList());
-            } else {
-                return Collections.emptyList();
-            }
+            if (items == null) return Collections.emptyList();
+            return items.stream()
+                    .map(i -> (Map<String, Object>) i.get("track"))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
 
         } catch (HttpClientErrorException.Unauthorized e) {
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             return getPlaylistTracks(refreshed, playlistId);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("❌ Failed to fetch playlist tracks for {}", playlistId, e);
             return Collections.emptyList();
         }
     }
 
     /**
-     * 🗳️ Playlist'i oylamaya göre yeniden sıralar
-     */
-    public void updateJukeboxPlaylist(UserInfo user) {
-        try {
-            String playlistId = user.getJukeboxPlaylistId();
-
-            // ✅ Playlist yoksa sadece log bas ve geç (hata fırlatma)
-            if (playlistId == null || playlistId.isEmpty()) {
-                System.out.println("⏸️ No active jukebox for user: " + user.getSpotifyUserId());
-                return; // ✅ Sessizce geç
-            }
-
-            // 1️⃣ Şu an çalan şarkıyı bul
-            Map<String, Object> nowPlaying = getNowPlaying(user);
-            String currentTrackUri = null;
-            String currentTrackId = null;
-
-            if (nowPlaying != null && nowPlaying.containsKey("item")) {
-                Map<String, Object> item = (Map<String, Object>) nowPlaying.get("item");
-                currentTrackId = (String) item.get("id");
-                currentTrackUri = (String) item.get("uri");
-            }
-
-            // 1️⃣ Mevcut playlist şarkılarını çek
-            List<Map<String, Object>> currentTracks = getPlaylistTracks(user, playlistId);
-
-            if (currentTracks.isEmpty()) {
-                System.out.println("⚠️ Jukebox playlist is empty, nothing to reorder");
-                return;
-            }
-
-            // 2️⃣ Şarkıları oylamaya göre sırala
-            List<String> orderedUris = sortPlaylistByVotes(user, currentTracks);
-
-            if (orderedUris.isEmpty()) {
-                System.out.println("⚠️ No valid tracks to reorder");
-                return;
-            }
-
-            // 4️⃣ Şu an çalan şarkıyı en başta tut
-            if (currentTrackUri != null) {
-                orderedUris.remove(currentTrackUri); // varsa kaldır
-                orderedUris.add(0, currentTrackUri); // başa ekle
-            }
-
-            // 3️⃣ Playlist'i güncelle
-            replacePlaylistTracks(user, playlistId, orderedUris);
-            System.out.println("✅ Jukebox playlist updated: " + orderedUris.size() + " tracks reordered");
-
-
-        } catch (Exception e) {
-            System.err.println("❌ Failed to update jukebox playlist for: " + user.getSpotifyUserId());
-            e.printStackTrace();
-        }
-    }
-
-    private String getActiveDeviceId(UserInfo user) {
-        try {
-            String url = "https://api.spotify.com/v1/me/player/devices";
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + user.getAccessToken());
-
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
-            Map<String, Object> devices = response.getBody();
-
-            if (devices == null || !devices.containsKey("devices")) {
-                return null;
-            }
-
-            List<Map<String, Object>> deviceList = (List<Map<String, Object>>) devices.get("devices");
-            for (Map<String, Object> device : deviceList) {
-                if (device.containsKey("is_active") && (Boolean) device.get("is_active")) {
-                    return (String) device.get("id");
-                }
-            }
-
-            return null;
-        } catch (Exception e) {
-            System.err.println("❌ Failed to get active device ID for: " + user.getSpotifyUserId());
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * 🔄 Playlist şarkılarını oylamaya göre sıralar
-     */
-    private List<String> sortPlaylistByVotes(UserInfo user, List<Map<String, Object>> tracks) {
-        // Oy sayılarını ve cooldown listesini çek
-        Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
-        List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
-
-        // Normalize helper
-        Function<String, String> normalize = ref -> {
-            if (ref == null) return null;
-            return ref.startsWith("spotify:track:") ? ref.substring("spotify:track:".length()) : ref;
-        };
-
-        // Şarkıları 3 kategoriye ayır
-        List<Map<String, Object>> votedTracks = new ArrayList<>();
-        List<Map<String, Object>> unvotedTracks = new ArrayList<>();
-        List<Map<String, Object>> cooldownTracksInPlaylist = new ArrayList<>();
-
-        for (Map<String, Object> track : tracks) {
-            String trackId = (String) track.get("id");
-            String uri = (String) track.get("uri");
-
-            if (trackId == null || uri == null) continue;
-
-            String normalizedId = normalize.apply(trackId);
-            String normalizedUri = normalize.apply(uri);
-
-            boolean isCooldown = cooldownTracks.stream()
-                    .anyMatch(t -> t.equals(normalizedId) || t.equals(normalizedUri));
-
-            Long votes = voteCounts.getOrDefault(normalizedId,
-                    voteCounts.getOrDefault(normalizedUri, 0L));
-
-            if (isCooldown) {
-                cooldownTracksInPlaylist.add(track);
-            } else if (votes > 0) {
-                track.put("votes", votes);
-                votedTracks.add(track);
-            } else {
-                track.put("votes", 0L);
-                unvotedTracks.add(track);
-            }
-        }
-
-        // Oylanmış şarkıları oy sayısına göre sırala (çok oy → öne)
-        votedTracks.sort((a, b) -> Long.compare(
-                (long) b.getOrDefault("votes", 0L),
-                (long) a.getOrDefault("votes", 0L)
-        ));
-
-        // Final sıralama: [Oylanmış] + [Oylanmamış] + [Cooldown]
-        List<String> orderedUris = new ArrayList<>();
-        votedTracks.forEach(t -> orderedUris.add((String) t.get("uri")));
-        unvotedTracks.forEach(t -> orderedUris.add((String) t.get("uri")));
-        cooldownTracksInPlaylist.forEach(t -> orderedUris.add((String) t.get("uri")));
-
-        System.out.println("📊 Sorted playlist: " + votedTracks.size() + " voted, "
-                + unvotedTracks.size() + " unvoted, "
-                + cooldownTracksInPlaylist.size() + " cooldown");
-
-        return orderedUris;
-    }
-
-
-    /**
-     * 📝 Playlist'in tüm şarkılarını değiştirir
+     * Replaces the playlist content with a new list of tracks, keeping Spotify's batch limit (100 tracks/request).
+     *
+     * @param user       Spotify user.
+     * @param playlistId Target playlist ID.
+     * @param uris       Ordered list of Spotify track URIs.
      */
     private void replacePlaylistTracks(UserInfo user, String playlistId, List<String> uris) {
-        String url = "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks";
+        String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // Spotify API limiti: 100 şarkı/istek
-        int batchSize = 100;
+        final int batchSize = 100;
+
         for (int i = 0; i < uris.size(); i += batchSize) {
             List<String> batch = uris.subList(i, Math.min(i + batchSize, uris.size()));
-
             Map<String, Object> body = Map.of("uris", batch);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
             try {
-                if (i == 0) {
-                    // İlk batch: Playlist'i tamamen değiştir
+                if (i == 0)
                     restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
-                } else {
-                    // Sonraki batch'ler: Ekle
+                else
                     restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
-                }
-
-                Thread.sleep(100); // Rate limit koruması
 
             } catch (HttpClientErrorException.Unauthorized e) {
                 UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
                 replacePlaylistTracks(refreshed, playlistId, uris);
                 return;
             } catch (Exception e) {
-                System.err.println("⚠️ Failed to replace playlist tracks");
-                e.printStackTrace();
+                log.warn("⚠️ Failed to replace tracks in playlist {}", playlistId, e);
             }
         }
     }
 
     /**
-     * 🎵 Jukebox playlist'ini belirtilen cihazda çalar
+     * Sorts playlist tracks based on active votes and cooldown rules.
+     *
+     * @param user   Spotify user.
+     * @param tracks List of playlist tracks.
+     * @return Ordered list of Spotify track URIs.
+     */
+    private List<String> sortPlaylistByVotes(UserInfo user, List<Map<String, Object>> tracks) {
+        Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
+        List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+
+        List<Map<String, Object>> voted = new ArrayList<>();
+        List<Map<String, Object>> unvoted = new ArrayList<>();
+        List<Map<String, Object>> cooldown = new ArrayList<>();
+
+        for (Map<String, Object> track : tracks) {
+            String trackId = (String) track.get("id");
+            String uri = (String) track.get("uri");
+
+            if (trackId == null || uri == null) continue;
+            long count = votes.getOrDefault(trackId, 0L);
+
+            if (cooldownTracks.contains(trackId)) cooldown.add(track);
+            else if (count > 0) {
+                track.put("votes", count);
+                voted.add(track);
+            } else unvoted.add(track);
+        }
+
+        voted.sort(Comparator.comparingLong(
+                (Map<String, Object> t) -> (long) t.get("votes")).reversed());
+
+        List<String> orderedUris = new ArrayList<>();
+        voted.forEach(t -> orderedUris.add((String) t.get("uri")));
+        unvoted.forEach(t -> orderedUris.add((String) t.get("uri")));
+        cooldown.forEach(t -> orderedUris.add((String) t.get("uri")));
+
+        log.info("📊 Sorted playlist → {} voted | {} unvoted | {} cooldown",
+                voted.size(), unvoted.size(), cooldown.size());
+
+        return orderedUris;
+    }
+
+
+    // --------------------------------------------------------------------
+    // JUKEBOX & QUEUE MANAGEMENT
+    // --------------------------------------------------------------------
+
+    /**
+     * Plays the user's Jukebox playlist on the selected device.
+     * Automatically creates one if it doesn’t exist.
+     *
+     * @param user     Spotify user.
+     * @param deviceId Target Spotify device ID.
      */
     public void playJukeboxPlaylist(UserInfo user, String deviceId) {
         String playlistId = user.getJukeboxPlaylistId();
 
-        if (playlistId == null || playlistId.isEmpty()) {
-            System.out.println("⚠️ No jukebox playlist, creating one...");
+        if (playlistId == null || playlistId.isBlank()) {
+            log.info("⚠️ No existing Jukebox playlist for user {}. Creating one...", user.getSpotifyUserId());
             playlistId = createJukeboxPlaylist(user);
         }
 
         playOnDevice(user, deviceId, playlistId);
-        System.out.println("🎵 Jukebox playlist started on device: " + deviceId);
+        log.info("🎵 Started Jukebox playlist on device {}", deviceId);
     }
 
     /**
-     * 🗳️ En çok oy alan şarkıyı queue'nun başına ekler
+     * Adds the top-voted track (not in cooldown) to the user's Spotify queue.
+     *
+     * @param user Spotify user.
      */
     public void reorderQueueByVotes(UserInfo user) {
         try {
             String playlistId = user.getJukeboxPlaylistId();
-            if (playlistId == null || playlistId.isEmpty()) {
-                System.out.println("⏸️ No active jukebox");
+            if (playlistId == null || playlistId.isBlank()) {
+                log.info("⏸️ No active Jukebox for {}", user.getSpotifyUserId());
                 return;
             }
 
-            // 1️⃣ Şu an çalan şarkıyı al
             Map<String, Object> nowPlaying = getNowPlaying(user);
-            if (nowPlaying == null || !nowPlaying.containsKey("item")) {
-                System.out.println("⚠️ Nothing playing");
-                return;
-            }
+            String currentTrackId = nowPlaying.containsKey("item")
+                    ? (String) ((Map<?, ?>) nowPlaying.get("item")).get("id")
+                    : null;
 
-            String currentTrackId = (String) ((Map) nowPlaying.get("item")).get("id");
-
-            // 2️⃣ Playlist şarkılarını çek
             List<Map<String, Object>> playlistTracks = getPlaylistTracks(user, playlistId);
-            if (playlistTracks.isEmpty()) {
-                return;
-            }
+            if (playlistTracks.isEmpty()) return;
 
-            // 3️⃣ Oyları al
-            Map<String, Long> voteCounts = voteService.getActiveVotes(user.getSpotifyUserId());
-            List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
+            Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
+            List<String> cooldown = voteService.getCooldownTracks(user.getSpotifyUserId());
 
-            // 4️⃣ Şu an çalanı ve cooldown'dakileri çıkar
-            List<Map<String, Object>> votableTracks = playlistTracks.stream()
+            // Filter out current + cooldown tracks
+            List<Map<String, Object>> votable = playlistTracks.stream()
                     .filter(track -> {
-                        String trackId = (String) track.get("id");
-                        return trackId != null
-                                && !trackId.equals(currentTrackId)
-                                && !cooldownTracks.contains(trackId);
+                        String id = (String) track.get("id");
+                        return id != null && !id.equals(currentTrackId) && !cooldown.contains(id);
                     })
-                    .collect(Collectors.toList());
+                    .toList();
 
-            if (votableTracks.isEmpty()) {
-                System.out.println("⚠️ No votable tracks");
-                return;
-            }
+            if (votable.isEmpty()) return;
 
-            // 5️⃣ En çok oy alan şarkıyı bul
-            Map<String, Object> topTrack = votableTracks.stream()
-                    .max((a, b) -> {
-                        String idA = (String) a.get("id");
-                        String idB = (String) b.get("id");
-                        long voteA = voteCounts.getOrDefault(idA, 0L);
-                        long voteB = voteCounts.getOrDefault(idB, 0L);
-                        return Long.compare(voteA, voteB);
-                    })
+            // Find top voted
+            Map<String, Object> topTrack = votable.stream()
+                    .max(Comparator.comparingLong(t ->
+                            votes.getOrDefault((String) t.get("id"), 0L)))
                     .orElse(null);
 
-            if (topTrack == null) {
-                return;
-            }
+            if (topTrack == null) return;
 
             String topTrackId = (String) topTrack.get("id");
-            long topVotes = voteCounts.getOrDefault(topTrackId, 0L);
+            long topVotes = votes.getOrDefault(topTrackId, 0L);
 
-            // 6️⃣ Sadece oy varsa queue'ya ekle
             if (topVotes > 0) {
                 addToQueue(user, topTrackId);
-                System.out.println("✅ Added top voted track to queue: " + topTrack.get("name") + " (" + topVotes + " votes)");
+                log.info("✅ Added top-voted track '{}' ({} votes) to queue",
+                        topTrack.get("name"), topVotes);
             } else {
-                System.out.println("⚠️ No votes yet");
+                log.info("⚠️ No votes available to reorder queue.");
             }
 
         } catch (Exception e) {
-            System.err.println("❌ Failed to reorder queue");
-            e.printStackTrace();
+            log.error("❌ Failed to reorder queue for {}", user.getSpotifyUserId(), e);
         }
     }
 
     /**
-     * 🎵 Queue'ya şarkı ekler
+     * Adds a track to the user's Spotify playback queue.
+     *
+     * @param user    Spotify user.
+     * @param trackId Spotify track ID.
      */
     private void addToQueue(UserInfo user, String trackId) {
-        String url = "https://api.spotify.com/v1/me/player/queue?uri=spotify:track:" + trackId;
+        String url = spotifyApiUrl + "/me/player/queue?uri=spotify:track:" + trackId;
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + user.getAccessToken());
+        headers.setBearerAuth(user.getAccessToken());
 
         try {
             restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(headers), Void.class);
@@ -611,60 +591,46 @@ public class SpotifyService {
             UserInfo refreshed = spotifyRefreshService.refreshAccessToken(user);
             addToQueue(refreshed, trackId);
         } catch (Exception e) {
-            System.err.println("⚠️ Failed to add to queue");
+            log.warn("⚠️ Failed to add track {} to queue for {}", trackId, user.getSpotifyUserId());
         }
     }
 
     /**
-     * 🎵 Playlist'in şarkılarını oy bilgisiyle döndürür (Client için)
+     * Returns the list of upcoming tracks from the user's playlist
+     * enriched with live vote counts — for client display.
+     *
+     * @param user Spotify user.
+     * @return List of upcoming tracks with their vote data.
      */
     public List<Map<String, Object>> getUpcomingTracksWithVotes(UserInfo user) {
         try {
             String playlistId = user.getJukeboxPlaylistId();
-            System.out.println("playlistId: " + playlistId);
-            if (playlistId == null) {
-                return Collections.emptyList();
-            }
+            if (playlistId == null) return Collections.emptyList();
 
-            // 1️⃣ Şu an çalan şarkıyı bul
             Map<String, Object> nowPlaying = getNowPlaying(user);
-            String currentTrackId = null;
+            String currentTrackId = nowPlaying.containsKey("item")
+                    ? (String) ((Map<?, ?>) nowPlaying.get("item")).get("id")
+                    : null;
 
-            if (nowPlaying != null && nowPlaying.containsKey("item")) {
-                currentTrackId = (String) ((Map) nowPlaying.get("item")).get("id");
-            }
-
-            // 2️⃣ Playlist şarkılarını çek
             List<Map<String, Object>> tracks = getPlaylistTracks(user, playlistId);
 
-            // 3️⃣ Şu an çalanı çıkar
-            final String currentId = currentTrackId;
+            // Filter out current
             List<Map<String, Object>> upNext = tracks.stream()
-                    .filter(track -> {
-                        String trackId = (String) track.get("id");
-                        return trackId != null && !trackId.equals(currentId);
-                    })
+                    .filter(t -> !Objects.equals(t.get("id"), currentTrackId))
                     .collect(Collectors.toList());
 
-            // 4️⃣ Oy bilgilerini ekle
             Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
-            upNext.forEach(track -> {
-                String trackId = (String) track.get("id");
-                track.put("votes", votes.getOrDefault(trackId, 0L));
-            });
+            upNext.forEach(t -> t.put("votes", votes.getOrDefault(t.get("id"), 0L)));
 
-            // 5️⃣ Oylamaya göre sırala (sadece görsel için)
-            upNext.sort((a, b) -> {
-                long voteA = (long) a.getOrDefault("votes", 0L);
-                long voteB = (long) b.getOrDefault("votes", 0L);
-                return Long.compare(voteB, voteA); // Çok oy → öne
-            });
+            upNext.sort(Comparator.comparingLong(
+                    (Map<String, Object> t) -> (long) t.getOrDefault("votes", 0L)).reversed());
 
             return upNext;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("❌ Failed to fetch upcoming tracks with votes", e);
             return Collections.emptyList();
         }
     }
 }
+

@@ -2,6 +2,7 @@ package org.bithub.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bithub.model.PlayedSong;
 import org.bithub.model.TrackVote;
 import org.bithub.model.Vote;
@@ -15,6 +16,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * VoteService
+ * ------------------------------------------------------------------------
+ * Manages all vote-related logic for the Spotify Jukebox system.
+ *
+ * Responsibilities:
+ *   • Adding votes while preventing duplicate votes per client
+ *   • Cleaning up expired votes (older than 1 hour)
+ *   • Resetting votes for songs that have finished playing
+ *   • Tracking recently played songs (cooldown)
+ *   • Returning ranked tracks based on current votes
+ *
+ * Backward Compatibility:
+ *   All original public method names (addVote, resetVotesForPlayedTrack, etc.)
+ *   have been preserved exactly.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VoteService {
@@ -22,28 +40,57 @@ public class VoteService {
     private final VoteRepository voteRepository;
     private final PlayedSongRepository playedSongRepository;
 
-    // 🕐 1️⃣ Otomatik temizlik — her 5 dakikada bir 1 saatten eski oyları sil
-    @Scheduled(fixedRate = 60000) // 300,000 ms = 5 dk ...->simdilik 1 dk ayarli
+    // --------------------------------------------------------------------
+    // 🧹 VOTE CLEANUP
+    // --------------------------------------------------------------------
+
+    /**
+     * Scheduled cleanup task — removes votes older than 1 hour.
+     * <p>
+     * Currently runs every 1 minute for testing purposes.
+     * In production, adjust {@code fixedRate} to 300000 (5 minutes).
+     * </p>
+     */
+    @Scheduled(fixedRate = 60_000) // 1 minute (test) → change to 5 min in production
     @Transactional
     public void cleanupOldVotesScheduled() {
         cleanupOldVotes();
     }
 
-    // her 5 dakikada 1 saatten eski oyları temizle
+    /**
+     * Deletes all votes older than 1 hour from the repository.
+     * Executed both manually and via scheduler.
+     */
     @Transactional
     public void cleanupOldVotes() {
         LocalDateTime threshold = LocalDateTime.now().minusHours(1);
-        voteRepository.deleteOldVotes(threshold);
+        int deleted = voteRepository.deleteOldVotes(threshold);
+        if (deleted > 0) {
+            log.info("🧹 Cleaned {} expired votes (before {}).", deleted, threshold);
+        }
     }
 
-    // Oy ekle
+
+    // --------------------------------------------------------------------
+    // 🗳️ ADD / MANAGE VOTES
+    // --------------------------------------------------------------------
+
+    /**
+     * Adds a new vote for a track by a given client.
+     * Prevents the same client from voting twice for the same song.
+     *
+     * @param ownerId  Spotify user/session ID of the Jukebox owner
+     * @param trackId  Spotify track ID
+     * @param clientId unique client identifier (browser/device)
+     * @return persisted {@link Vote} object
+     * @throws RuntimeException if this client already voted for the track
+     */
     @Transactional
     public Vote addVote(String ownerId, String trackId, String clientId) {
         cleanupOldVotes();
 
-        // 🔹 Aynı kullanıcı aynı şarkıya zaten oy verdiyse, yeni oy verme
-        List<Vote> existingVotes = voteRepository.findByOwnerIdAndTrackId(ownerId, trackId);
-        boolean alreadyVoted = existingVotes.stream()
+        boolean alreadyVoted = voteRepository.findByOwnerIdAndTrackId(ownerId, trackId)
+                .stream()
                 .anyMatch(v -> v.getClientId().equals(clientId));
 
         if (alreadyVoted) {
@@ -56,25 +103,37 @@ public class VoteService {
                 .clientId(clientId)
                 .createdAt(LocalDateTime.now())
                 .build();
-        return voteRepository.save(vote);
+
+        Vote saved = voteRepository.save(vote);
+        log.info("🗳️ Added new vote → owner={} track={} client={}", ownerId, trackId, clientId);
+        return saved;
     }
 
-    // Şarkı çaldığında oyları sıfırla
+
+    // --------------------------------------------------------------------
+    // 🎵 PLAYED TRACKS & RESET
+    // --------------------------------------------------------------------
+
+    /**
+     * Resets (deletes) all votes for a track once it finishes playing,
+     * and records the song in {@link PlayedSongRepository} for cooldown tracking.
+     *
+     * @param ownerId Spotify user/session ID
+     * @param trackId Spotify track ID
+     */
     @Transactional
     public void resetVotesForPlayedTrack(String ownerId, String trackId) {
-        System.out.println("Resetting votes for track: " + trackId);
+        log.info("Resetting votes for track: {}", trackId);
 
         voteRepository.deleteVotesForTrack(ownerId, trackId);
-
-        // Silme sonrası kontrol
         long remaining = voteRepository.findByOwnerIdAndTrackId(ownerId, trackId).size();
+
         if (remaining == 0) {
-            System.out.println("✅ Votes successfully reset for " + trackId);
+            log.info("✅ Votes successfully reset for {}", trackId);
         } else {
-            System.err.println("⚠️ Votes not deleted correctly for " + trackId + " (" + remaining + " left)");
+            log.warn("⚠️ Votes not fully deleted for {} ({} remaining)", trackId, remaining);
         }
 
-        // Played listesine ekle
         playedSongRepository.save(PlayedSong.builder()
                 .ownerId(ownerId)
                 .trackId(trackId)
@@ -82,28 +141,54 @@ public class VoteService {
                 .build());
     }
 
-    // Geçerli oyları (1 saat içindekiler)
+
+    // --------------------------------------------------------------------
+    // 📊 ACTIVE VOTES / RANKING
+    // --------------------------------------------------------------------
+
+    /**
+     * Returns all active votes (within the last hour) as a map of track IDs and counts.
+     *
+     * @param ownerId Spotify user/session ID
+     * @return map of trackId → voteCount
+     */
     public Map<String, Long> getActiveVotes(String ownerId) {
         cleanupOldVotes();
+
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(1);
         Map<String, Long> result = new HashMap<>();
 
-        for (Object[] row : voteRepository.findRecentVoteCounts(ownerId, LocalDateTime.now().minusHours(1))) {
+        for (Object[] row : voteRepository.findRecentVoteCounts(ownerId, cutoff)) {
             result.put((String) row[0], (Long) row[1]);
         }
+
         return result;
     }
 
-    // Son 3 çalınan şarkıyı getir
+    /**
+     * Retrieves the last 3 played tracks for cooldown management.
+     * These tracks cannot be voted on again until they expire.
+     *
+     * @param ownerId Spotify user/session ID
+     * @return list of last 3 track IDs
+     */
     public List<String> getCooldownTracks(String ownerId) {
         return playedSongRepository.findLast3Songs(ownerId);
     }
 
+    /**
+     * Returns a ranked list of tracks with their vote counts,
+     * sorted in descending order.
+     *
+     * @param ownerId Spotify user/session ID
+     * @return sorted list of {@link TrackVote} objects
+     */
     public List<TrackVote> getRankedTracks(String ownerId) {
         Map<String, Long> votes = getActiveVotes(ownerId);
+
         return votes.entrySet().stream()
                 .map(e -> new TrackVote(e.getKey(), e.getValue()))
                 .sorted((a, b) -> Long.compare(b.votes(), a.votes()))
                 .toList();
     }
-
 }
