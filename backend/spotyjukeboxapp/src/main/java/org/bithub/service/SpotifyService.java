@@ -231,7 +231,25 @@ public class SpotifyService {
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return response.getBody();
+                Map<String, Object> body = response.getBody();
+
+                // ✅ NEW: Cooldown ekleme
+                try {
+                    boolean isPlaying = Boolean.TRUE.equals(body.get("is_playing"));
+                    if (isPlaying && body.containsKey("item")) {
+                        Map<String, Object> item = (Map<String, Object>) body.get("item");
+                        String currentTrackId = (String) item.get("id");
+
+                        if (currentTrackId != null && !currentTrackId.isBlank()) {
+                            voteService.addPlayedSong(user.getSpotifyUserId(), currentTrackId);
+                            log.debug("🕐 Added to cooldown: {} for user {}", currentTrackId, user.getSpotifyUserId());
+                        }
+                    }
+                } catch (Exception cooldownError) {
+                    log.warn("⚠️ Failed to update cooldown for user {}", user.getSpotifyUserId(), cooldownError);
+                }
+
+                return body;
             }
             return Map.of("is_playing", false);
 
@@ -244,6 +262,8 @@ public class SpotifyService {
             return Map.of("error", "Failed to fetch currently playing track");
         }
     }
+
+
 
     /**
      * Retrieves and sorts the Spotify queue based on votes and cooldowns.
@@ -446,6 +466,7 @@ public class SpotifyService {
             // 5️⃣ Replace playlist content
             replacePlaylistTracks(user, playlistId, orderedUris);
             log.info("✅ Updated Jukebox playlist order for {}", user.getSpotifyUserId());
+
 
         } catch (Exception e) {
             log.error("❌ Failed to update Jukebox playlist for {}", user.getSpotifyUserId(), e);

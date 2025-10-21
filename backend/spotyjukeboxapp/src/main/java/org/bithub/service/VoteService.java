@@ -191,4 +191,30 @@ public class VoteService {
                 .sorted((a, b) -> Long.compare(b.votes(), a.votes()))
                 .toList();
     }
+
+    @Transactional
+    public void addPlayedSong(String userId, String trackId) {
+        try {
+            // DB’de aynı şarkı son 3 içinde varsa tekrar ekleme
+            List<String> recent = getCooldownTracks(userId);
+            if (recent.contains(trackId)) return;
+
+            playedSongRepository.save(
+                    PlayedSong.builder()
+                            .ownerId(userId)
+                            .trackId(trackId)
+                            .build()
+            );
+
+            if (recent.size() >= 3) {
+                String oldestTrackId = recent.get(0); // ilk eklenen
+                playedSongRepository.deleteByOwnerIdAndTrackId(userId, oldestTrackId);
+                log.debug("🗑️ Removed oldest cooldown track {}", oldestTrackId);
+            }
+
+            log.debug("🎶 Added {} to cooldown for {}", trackId, userId);
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to add played song {} for {}", trackId, userId, e);
+        }
+    }
 }
