@@ -235,7 +235,7 @@ const fetchNowPlaying = async () => {
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center px-4 py-8">
       {/* ⚠️ Error Banner*/}
-      {voteError || error && (
+      {voteError && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2
                    bg-yellow-500/20 border border-yellow-400 
                    text-yellow-300 text-sm px-4 py-2 rounded-lg 
