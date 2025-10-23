@@ -64,6 +64,7 @@ public class VoteController {
             String ownerId = payload.get("ownerId");
             String trackId = payload.get("trackId");
             voteService.resetVotesForPlayedTrack(ownerId, trackId);
+            voteService.addToPlayHistory(ownerId, trackId);
 
             return ResponseEntity.ok(Map.of("message", "Votes reset for track: " + trackId));
         } catch (Exception e) {

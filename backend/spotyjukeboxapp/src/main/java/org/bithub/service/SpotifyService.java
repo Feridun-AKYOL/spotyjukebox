@@ -693,13 +693,25 @@ public class SpotifyService {
 
             List<Map<String, Object>> tracks = getPlaylistTracks(user, playlistId);
 
-            // Filter out current
             List<Map<String, Object>> upNext = tracks.stream()
                     .filter(t -> !Objects.equals(t.get("id"), currentTrackId))
                     .collect(Collectors.toList());
 
             Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
-            upNext.forEach(t -> t.put("votes", votes.getOrDefault(t.get("id"), 0L)));
+
+            // ✅ Cooldown bilgisi ekle
+            upNext.forEach(t -> {
+                String trackId = (String) t.get("id");
+                t.put("votes", votes.getOrDefault(trackId, 0L));
+
+                // Cooldown kontrolü
+                int cooldownRemaining = voteService.getCooldownRemaining(
+                        user.getSpotifyUserId(),
+                        trackId
+                );
+                t.put("cooldownRemaining", cooldownRemaining);
+                t.put("inCooldown", cooldownRemaining > 0);
+            });
 
             upNext.sort(Comparator.comparingLong(
                     (Map<String, Object> t) -> (long) t.getOrDefault("votes", 0L)).reversed());

@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
-import { log } from "console";
 
 interface Track {
   id: string;
@@ -11,6 +10,8 @@ interface Track {
   artist: string;
   albumArt: string;
   votes: number;
+  inCooldown?: boolean;
+  cooldownRemaining?: number;
 }
 
 export default function ClientSessionPage() {
@@ -26,8 +27,6 @@ export default function ClientSessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
 
-
-
   // 🔹 Benzersiz ama kalıcı clientId üret
   const [clientId] = useState(() => {
     let existing = localStorage.getItem("clientId");
@@ -37,7 +36,6 @@ export default function ClientSessionPage() {
     }
     return existing;
   });
-
 
   // 📡 WebSocket bağlantısı — anlık oy güncellemesi için
   useEffect(() => {
@@ -68,112 +66,84 @@ export default function ClientSessionPage() {
       return;
     }
 
-const fetchNowPlaying = async () => {
-  try {
-    const res = await axios.get(
-      `http://127.0.0.1:8080/api/spotify/now-playing/${ownerId}`
-    );
-    const item = res.data.item;
-    if (!item) return;
-
-    const currentTrackId = nowPlayingRef.current?.id;
-    const currentTrackName = nowPlayingRef.current?.name;
-
-    // 🎯 Yeni şarkı başladıysa
-    if (currentTrackId && currentTrackId !== item.id) {
-      console.log(`🎵 Track changed from ${currentTrackName} to ${item.name}`);
-
-      // ✅ ESKİ şarkının (şimdi biten) oylarını backend'de sıfırla
+    const fetchNowPlaying = async () => {
       try {
-        await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
-          ownerId,
-          trackId: currentTrackId, // ✅ DOĞRU! Şimdi biten şarkı
-        });
-        console.log("✅ Backend reset votes for:", currentTrackId);
+        const res = await axios.get(
+          `http://127.0.0.1:8080/api/spotify/now-playing/${ownerId}`
+        );
+        const item = res.data.item;
+        if (!item) return;
+
+        const currentTrackId = nowPlayingRef.current?.id;
+        const currentTrackName = nowPlayingRef.current?.name;
+
+        // 🎯 Yeni şarkı başladıysa
+        if (currentTrackId && currentTrackId !== item.id) {
+          console.log(`🎵 Track changed from ${currentTrackName} to ${item.name}`);
+
+          // ✅ ESKİ şarkının (şimdi biten) oylarını backend'de sıfırla
+          try {
+            await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
+              ownerId,
+              trackId: currentTrackId,
+            });
+            console.log("✅ Backend reset votes for:", currentTrackId);
+          } catch (err) {
+            console.warn("⚠️ Failed to reset votes:", err);
+          }
+
+          // ✅ Frontend'de sadece o şarkının oyunu sil
+          setVotes((prev) => {
+            const newVotes = { ...prev };
+            delete newVotes[currentTrackId];
+            return newVotes;
+          });
+
+          // ✅ Çalan şarkıyı kuyruktan çıkar
+          setUpNext((prev) => prev.filter((t) => t.id !== currentTrackId));
+        }
+
+        // 🎧 Güncel şarkıyı güncelle (state + ref)
+        const newTrack = {
+          id: item.id,
+          name: item.name,
+          artist: item.artists.map((a: any) => a.name).join(", "),
+          albumArt: item.album.images[0]?.url || "",
+          votes: 0,
+        };
+
+        setNowPlaying(newTrack);
+        nowPlayingRef.current = newTrack;
       } catch (err) {
-        console.warn("⚠️ Failed to reset votes:", err);
+        console.error("Failed to fetch now playing:", err);
+        setError("Failed to connect to Spotify session.");
       }
-
-      // ✅ Frontend'de sadece o şarkının oyunu sil
-      setVotes((prev) => {
-        const newVotes = { ...prev };
-        delete newVotes[currentTrackId];
-        return newVotes;
-      });
-
-      // ✅ Çalan şarkıyı kuyruktan çıkar
-      setUpNext((prev) => prev.filter((t) => t.id !== currentTrackId));
-    }
-
-    // 🎧 Güncel şarkıyı güncelle (state + ref)
-    const newTrack = {
-      id: item.id,
-      name: item.name,
-      artist: item.artists.map((a: any) => a.name).join(", "),
-      albumArt: item.album.images[0]?.url || "",
-      votes: 0,
     };
 
-    setNowPlaying(newTrack);
-    nowPlayingRef.current = newTrack;
-  } catch (err) {
-    console.error("Failed to fetch now playing:", err);
-    setError("Failed to connect to Spotify session.");
-  }
-};
-
-
-    // const fetchQueue = async () => {
-    //   try {
-    //     const res = await axios.get(
-    //       `http://localhost:8080/api/spotify/queue/${ownerId}`
-    //     );
-    //     const queue = res.data.queue || [];
-
-    //     const uniqueTracks = new Map<string, any>();
-    //     queue.forEach((track: any) => {
-    //       if (track.id && !uniqueTracks.has(track.id)) {
-    //         uniqueTracks.set(track.id, track);
-    //       }
-    //     });
-
-    //     setUpNext(
-    //       Array.from(uniqueTracks.values()).map((track: any) => ({
-    //         id: track.id,
-    //         name: track.name,
-    //         artist: track.artists.map((a: any) => a.name).join(", "),
-    //         albumArt: track.album.images[0]?.url || "",
-    //         votes:0, // BURADA GUNCEL OLARAK OYLARI CEKMELI???
-    //       }))
-    //     );
-    //   } catch (err) {
-    //     console.error("Failed to fetch queue:", err);
-    //   }
-    // };
-
-
     const fetchQueue = async () => {
-  try {
-    // ✅ Playlist şarkılarını oy bilgisiyle çek
-    const res = await axios.get(
-      `http://localhost:8080/api/spotify/upcoming-tracks/${ownerId}`
-    );
-    console.log(res);
-    const queue = res.data.queue || [];
+      try {
+        // ✅ Playlist şarkılarını oy ve cooldown bilgisiyle çek
+        const res = await axios.get(
+          `http://localhost:8080/api/spotify/upcoming-tracks/${ownerId}`
+        );
+        console.log(res);
+        const queue = res.data.queue || [];
 
-    setUpNext(
-      queue.map((track: any) => ({
-        id: track.id,
-        name: track.name,
-        artist: track.artists?.map((a: any) => a.name).join(", ") || "Unknown",
-        albumArt: track.album?.images?.[0]?.url || "",
-        votes: track.votes || 0, // ✅ Backend'den gelen güncel oy
-      }))
-    );
-  } catch (err) {
-    console.error("Failed to fetch queue:", err);
-  }
-};
+        setUpNext(
+          queue.map((track: any) => ({
+            id: track.id,
+            name: track.name,
+            artist: track.artists?.map((a: any) => a.name).join(", ") || "Unknown",
+            albumArt: track.album?.images?.[0]?.url || "",
+            votes: track.votes || 0,
+            inCooldown: track.inCooldown || false,
+            cooldownRemaining: track.cooldownRemaining || 0,
+          }))
+        );
+      } catch (err) {
+        console.error("Failed to fetch queue:", err);
+      }
+    };
 
     fetchNowPlaying();
     fetchQueue();
@@ -205,7 +175,6 @@ const fetchNowPlaying = async () => {
         "Vote failed";
       console.warn("Vote error:", message);
 
-      // Eğer zaten oy vermişse özel mesaj göster
       if (message.includes("already voted")) {
         setVoteError("⚠️ You already voted for this song.");
       } else {
@@ -215,13 +184,13 @@ const fetchNowPlaying = async () => {
       setTimeout(() => setVoted(null), 2000);
     }
   };
+
   useEffect(() => {
     if (voteError) {
       const timer = setTimeout(() => setVoteError(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [voteError]);
-
 
   // 🎧 Henüz şarkı yüklenmediyse
   if (!nowPlaying)
@@ -275,33 +244,58 @@ const fetchNowPlaying = async () => {
             {upNext.map((track) => (
               <div
                 key={track.id}
-                className={`bg-[#181818] p-4 rounded-xl border transition-all duration-300 hover:scale-105 ${voted === track.id
-                  ? "border-green-500 ring-1 ring-green-400"
-                  : "border-gray-800"
-                  }`}
+                className={`bg-[#181818] p-4 rounded-xl border transition-all duration-300 ${
+                  track.inCooldown 
+                    ? "opacity-60 border-gray-700" 
+                    : voted === track.id
+                    ? "border-green-500 ring-1 ring-green-400 hover:scale-105"
+                    : "border-gray-800 hover:scale-105"
+                }`}
               >
-                <img
-                  src={track.albumArt}
-                  alt={track.name}
-                  className="w-full h-40 object-cover rounded-lg mb-3"
-                />
+                <div className="relative">
+                  <img
+                    src={track.albumArt}
+                    alt={track.name}
+                    className={`w-full h-40 object-cover rounded-lg mb-3 ${
+                      track.inCooldown ? "grayscale" : ""
+                    }`}
+                  />
+                  {track.inCooldown && (
+                    <div className="absolute top-2 right-2 bg-orange-500/90 text-xs font-semibold px-2 py-1 rounded-full text-white backdrop-blur-sm">
+                      🕐 Cooldown
+                    </div>
+                  )}
+                </div>
                 <h4 className="font-semibold">{track.name}</h4>
                 <p className="text-gray-400 text-sm mb-3">{track.artist}</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">
-                    {votes[track.id] ?? track.votes ?? 0} votes
-                  </span>
-                  <button
-                    onClick={() => handleVote(track.id)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition ${voted === track.id
-                      ? "bg-green-500 text-black cursor-not-allowed"
-                      : "bg-gray-700 hover:bg-green-500 hover:text-black"
+                
+                {track.inCooldown ? (
+                  <div className="text-center py-2 bg-gray-800/50 rounded-lg">
+                    <p className="text-xs text-orange-400 font-medium">
+                      Recently played
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available in {track.cooldownRemaining} song{track.cooldownRemaining !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">
+                      {votes[track.id] ?? track.votes ?? 0} votes
+                    </span>
+                    <button
+                      onClick={() => handleVote(track.id)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium transition ${
+                        voted === track.id
+                          ? "bg-green-500 text-black cursor-not-allowed"
+                          : "bg-gray-700 hover:bg-green-500 hover:text-black"
                       }`}
-                    disabled={voted !== null}
-                  >
-                    {voted === track.id ? "Voted ✅" : "Vote"}
-                  </button>
-                </div>
+                      disabled={voted !== null}
+                    >
+                      {voted === track.id ? "Voted ✅" : "Vote"}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
