@@ -1,129 +1,105 @@
 import { useContext, useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { AuthContext } from '@/context/AuthProvider';
-import PlaylistService from '@/services/PlaylistService';
+import axios from 'axios';
 import { Playlist } from '@/models/PlayslistModels';
 
 const PostLoginPage = () => {
-  const { user, signoutCallback } = useContext(AuthContext);
-
-  const playlistService = user?.access_token
-    ? PlaylistService(user.access_token)
-    : null;
+  const { user, logout } = useContext(AuthContext);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [spotifyProfile, setSpotifyProfile] = useState<any>(null);
-  const [registerStatus, setRegisterStatus] = useState<'success' | 'failed' | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // 🔹 Kullanıcının Spotify profilini backend'den çek
   useEffect(() => {
-    if (!playlistService) return;
-
-    playlistService
-      .getUserPlaylists()
-      .then((data) => setPlaylists(data.items))
-      .catch((err) => {
-        console.error(err);
-        setError(err.message);
-      });
-  }, [playlistService]);
-
-  useEffect(() => {
-    if (!user?.access_token || !user?.refresh_token) {
-      console.warn('⚠️ Missing access_token or refresh_token');
-      return;
-    }
-
-    console.log('🎵 Fetching Spotify profile...');
-
-    fetch('https://api.spotify.com/v1/me', {
-      headers: {
-        Authorization: `Bearer ${user.access_token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Spotify API error: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        console.log('✅ Spotify Profile loaded:', data);
-        setSpotifyProfile(data);
-
-        if (!data.email) {
-          console.error('❌ Email not found in Spotify profile. Missing "user-read-email" scope?');
-          setError('Email not found. Please re-authorize with correct scopes.');
+    const loadUserProfile = async () => {
+      try {
+        if (!user?.id) {
+          setError('User not found');
+          setLoading(false);
           return;
         }
 
-        const registerPayload = {
-          userId: data.id,
-          email: data.email,
-          displayName: data.display_name || 'Unknown',
-          accessToken: user.access_token,
-          refreshToken: user.refresh_token,
-          scopes: user.scope?.split(' ') || [],
-        };
+        // Backend’te /api/auth/spotify/me/{userId} endpoint'i var
+        const profileRes = await axios.get(
+          `http://localhost:8080/api/auth/spotify/me/${user.id}`
+        );
 
-        console.log('📤 Sending register request:', registerPayload);
+        console.log('✅ Backend profile:', profileRes.data);
+        setSpotifyProfile(profileRes.data);
+      } catch (err: any) {
+        console.error('❌ Failed to fetch profile:', err);
+        setError('Failed to load user profile');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        fetch('http://localhost:8080/user/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(registerPayload),
-        })
-          .then(async (res) => {
-            const result = await res.json();
-            console.log('📥 Register response status:', res.status);
-            console.log('📥 Register response body:', result);
+    loadUserProfile();
+  }, [user?.id]);
 
-            if (!res.ok) {
-              console.error('❌ Register failed:', result);
-              setRegisterStatus('failed');
-              setError(`Registration failed: ${result.message || 'Unknown error'}`);
-              return;
-            }
+  // 🔹 Playlist’leri backend’ten çek
+  useEffect(() => {
+    const loadPlaylists = async () => {
+      if (!user?.id) return;
 
-            console.log('✅ User persisted successfully:', result);
-            setRegisterStatus('success');
-          })
-          .catch((err) => {
-            console.error('❌ Failed to persist tokens:', err);
-            setRegisterStatus('failed');
-            setError(`Network error: ${err.message}`);
-          });
-      })
-      .catch((err) => {
-        console.error('❌ Failed to fetch Spotify profile:', err);
-        setError(`Failed to load profile: ${err.message}`);
-      });
-  }, [user]);
+      try {
+        const res = await axios.get(
+          `http://localhost:8080/api/playlists/${user.id}`
+        );
+        console.log('🎵 Playlists from backend:', res.data);
+        setPlaylists(res.data.items || []);
+      } catch (err: any) {
+        console.error('❌ Playlist fetch error:', err);
+        setError('Failed to load playlists');
+      }
+    };
+
+    loadPlaylists();
+  }, [user?.id]);
+
+  const handleSpotifyConnect = () => {
+    const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+    const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
+    const scopes = 'user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public';
+    const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&scope=${encodeURIComponent(scopes)}`;
+    window.location.href = url;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center">
+        <p className="text-gray-600">Loading user data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        {registerStatus === 'success' && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4">
-            ✅ Successfully registered in database
-          </div>
-        )}
-        {registerStatus === 'failed' && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg mb-4">
-            ⚠️ Failed to register. Check console for details.
-          </div>
-        )}
-
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800">Protected Page</h1>
-              <p className="mt-2 text-gray-600">
-                Welcome, {spotifyProfile?.display_name || 'User'}
-              </p>
+              <h1 className="text-4xl font-bold text-gray-800">Spotify Jukebox</h1>
+              <h2 className="mt-2 text-gray-600">
+                Welcome, {spotifyProfile?.displayName || 'User'}
+              </h2>
+              {!spotifyProfile && (
+                <button
+                  onClick={handleSpotifyConnect}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold mt-4"
+                >
+                  Connect Spotify
+                </button>
+              )}
             </div>
+
             <button
-              onClick={signoutCallback}
+              onClick={logout}
               className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
             >
               <LogOut size={20} />
@@ -131,56 +107,56 @@ const PostLoginPage = () => {
             </button>
           </div>
 
-          <div className="mt-4 p-4 bg-gray-50 rounded-md">
-            <p className="text-sm text-gray-500 font-mono break-all">
-              Access Token: {user?.access_token}
-              <br />
-              Refresh Token: {user?.refresh_token}
-              <br />
-              Expires In: {user?.expires_in}
-              <br />
-              Scopes: {user?.scope}
-              <br />
-              Spotify ID: {spotifyProfile?.id}
-              <br />
-              Email: {spotifyProfile?.email || '❌ Not available'}
-              <br />
-              Display Name: {spotifyProfile?.display_name}
-            </p>
-          </div>
+          {error && (
+            <div className="bg-red-100 text-red-700 p-4 rounded mt-4">
+              {error}
+            </div>
+          )}
+
+          {spotifyProfile && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-md">
+              <p className="text-sm text-gray-600 font-mono break-all">
+                Spotify ID: {spotifyProfile.userId} <br />
+                Email: {spotifyProfile.email} <br />
+                Display Name: {spotifyProfile.displayName}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {playlists?.map((playlist) => (
+          {playlists.map((playlist) => (
             <div
               key={playlist.id}
-              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6"
+              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 cursor-pointer"
             >
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                {playlist?.name}
-              </h2>
-              <p className="text-sm text-gray-500 mb-2">
-                {playlist.owner.display_name}
-              </p>
-              {playlist.description && (
-                <p className="text-gray-600">{playlist?.description}</p>
+              {playlist.images?.[0] ? (
+                <img
+                  src={playlist.images[0].url}
+                  alt={playlist.name}
+                  className="rounded-lg mb-3"
+                />
+              ) : (
+                <div className="w-full h-32 bg-gray-200 rounded-lg mb-3 flex items-center justify-center text-gray-400">
+                  No image
+                </div>
               )}
+              <h2 className="text-xl font-semibold text-gray-800 mb-1">
+                {playlist.name}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {playlist.tracks?.total || 0} tracks
+              </p>
             </div>
           ))}
         </div>
 
-        {(!playlists || playlists.length === 0) && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No playlists found</p>
+        {(!playlists || playlists.length === 0) && !error && (
+          <div className="text-center py-12 text-gray-500">
+            No playlists found
           </div>
         )}
       </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4">
-          {error}
-        </div>
-      )}
     </div>
   );
 };

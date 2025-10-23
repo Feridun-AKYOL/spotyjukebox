@@ -66,45 +66,83 @@ export default function UserInfoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-6">
-        <h1 className="text-2xl font-bold mb-4">User Info</h1>
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 py-10 px-4">
+    <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8">
+      {/* Header */}
+      <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-6 flex items-center gap-2">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-7 w-7 text-indigo-500"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+        User Info
+      </h1>
 
-        <div className="flex gap-2 mb-4">
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="flex-1 border rounded px-3 py-2"
-            placeholder="Enter userId"
-          />
-          <button
-            onClick={fetchUser}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            {loading ? "Loading..." : "Fetch"}
-          </button>
-        </div>
-
-        {error && (
-          <div className="text-red-600 mb-4">Error: {error}</div>
-        )}
-
-        {data && (
-          <div className="space-y-2">
-            <p><strong>UserId:</strong> {data.userId}</p>
-            <p><strong>Scopes:</strong> {data.scopes?.join(", ") || "—"}</p>
-            <p><strong>Created:</strong> {data.createdAt}</p>
-            <p><strong>Updated:</strong> {data.updatedAt}</p>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-blue-600">Raw JSON</summary>
-              <pre className="bg-gray-100 p-3 rounded text-sm">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            </details>
-          </div>
-        )}
+      {/* Input & Button */}
+      <div className="flex gap-2 mb-6">
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          placeholder="Enter userId"
+        />
+        <button
+          onClick={fetchUser}
+          disabled={loading}
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50"
+        >
+          {loading ? "Loading..." : "Fetch"}
+        </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-300 text-red-700 px-4 py-3">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Data */}
+      {data && (
+        <div className="space-y-4">
+          <dl className="divide-y divide-gray-200">
+            <div className="py-2 flex justify-between">
+              <dt className="font-semibold text-gray-600">UserId</dt>
+              <dd className="text-gray-800">{data.userId}</dd>
+            </div>
+            <div className="py-2 flex justify-between">
+              <dt className="font-semibold text-gray-600">Scopes</dt>
+              <dd className="text-gray-800">
+                {data.scopes?.join(", ") || "—"}
+              </dd>
+            </div>
+            <div className="py-2 flex justify-between">
+              <dt className="font-semibold text-gray-600">Created</dt>
+              <dd className="text-gray-800">{data.createdAt}</dd>
+            </div>
+            <div className="py-2 flex justify-between">
+              <dt className="font-semibold text-gray-600">Updated</dt>
+              <dd className="text-gray-800">{data.updatedAt}</dd>
+            </div>
+          </dl>
+
+          {/* Raw JSON */}
+          <details className="mt-4">
+            <summary className="cursor-pointer text-indigo-600 font-medium">
+              Show Raw JSON
+            </summary>
+            <pre className="bg-gray-100 mt-2 p-4 rounded-lg text-sm text-gray-700 overflow-x-auto">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
+
 }
