@@ -8,11 +8,12 @@ export default function SuccessPage() {
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const ownerId = storedUser?.id;
 
+  // 🔹 QR code value that guests will scan to join the session
   const qrValue = `${window.location.origin}/client/session?ownerId=${ownerId}`;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#121212] text-gray-200 px-4">
-      {/* Card Container */}
+      {/* Main Card */}
       <div className="bg-[#181818] p-10 rounded-2xl border border-gray-800 text-center max-w-md shadow-xl">
         <h2 className="text-3xl font-extrabold mb-4 text-green-400 tracking-wide">
           Session Ready 🎉
@@ -29,7 +30,7 @@ export default function SuccessPage() {
           .
         </p>
 
-        {/* QR Code */}
+        {/* QR Code Display */}
         <div className="bg-[#0f0f0f] p-5 rounded-2xl border border-gray-700 inline-block mb-4">
           <QRCodeCanvas
             value={qrValue}
@@ -44,7 +45,7 @@ export default function SuccessPage() {
           Let your guests scan this QR code to join your Jukebox session.
         </p>
 
-        {/* Buttons */}
+        {/* Navigation & Link Buttons */}
         <div className="flex flex-col gap-3">
           <button
             onClick={() => navigate("/playlists")}
@@ -54,23 +55,26 @@ export default function SuccessPage() {
           </button>
 
           <button
-  onClick={() => {
-    const clientUrl = `${window.location.origin}/client/session?ownerId=${ownerId}`;
-    console.log("🔗 Opening client URL:", clientUrl);
+            onClick={() => {
+              const clientUrl = `${window.location.origin}/client/session?ownerId=${ownerId}`;
+              console.log("🔗 Opening client URL:", clientUrl);
 
-    // Eğer development modundaysan (localhost)
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      window.open(clientUrl, "_blank");
-    } else {
-      // Production'da HTTPS share link açılır
-      window.open(clientUrl, "_blank", "noopener,noreferrer");
-    }
-  }}
-  className="px-6 py-2 bg-transparent border border-green-500 hover:bg-green-500 hover:text-black rounded-full font-semibold transition"
->
-  Open Client Link
-</button>
-
+              // 🔹 Handle opening logic depending on environment
+              if (
+                window.location.hostname === "localhost" ||
+                window.location.hostname === "127.0.0.1"
+              ) {
+                // In dev: open local tab directly
+                window.open(clientUrl, "_blank");
+              } else {
+                // In production: open safe link (no referrer)
+                window.open(clientUrl, "_blank", "noopener,noreferrer");
+              }
+            }}
+            className="px-6 py-2 bg-transparent border border-green-500 hover:bg-green-500 hover:text-black rounded-full font-semibold transition"
+          >
+            Open Client Link
+          </button>
         </div>
       </div>
 

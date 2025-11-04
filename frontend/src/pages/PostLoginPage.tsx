@@ -12,7 +12,7 @@ const PostLoginPage = () => {
   const [spotifyProfile, setSpotifyProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔹 Kullanıcının Spotify profilini backend'den çek
+  // 🔹 Fetch Spotify profile info from backend after login
   useEffect(() => {
     const loadUserProfile = async () => {
       try {
@@ -22,7 +22,7 @@ const PostLoginPage = () => {
           return;
         }
 
-        // Backend’te /api/auth/spotify/me/{userId} endpoint'i var
+        // Retrieve user’s Spotify profile from backend
         const profileRes = await axios.get(
           `http://localhost:8080/api/auth/spotify/me/${user.id}`
         );
@@ -40,7 +40,7 @@ const PostLoginPage = () => {
     loadUserProfile();
   }, [user?.id]);
 
-  // 🔹 Playlist’leri backend’ten çek
+  // 🔹 Fetch user playlists from backend
   useEffect(() => {
     const loadPlaylists = async () => {
       if (!user?.id) return;
@@ -60,16 +60,21 @@ const PostLoginPage = () => {
     loadPlaylists();
   }, [user?.id]);
 
+  // 🎧 Redirect user to Spotify OAuth authorization flow
   const handleSpotifyConnect = () => {
     const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
     const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-    const scopes = 'user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public';
+    const scopes =
+      'user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public';
+
     const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&scope=${encodeURIComponent(scopes)}`;
+
     window.location.href = url;
   };
 
+  // Loading state while fetching user data
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -81,13 +86,18 @@ const PostLoginPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4">
       <div className="max-w-4xl mx-auto">
+        {/* Profile Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800">Spotify Jukebox</h1>
+              <h1 className="text-4xl font-bold text-gray-800">
+                Spotify Jukebox
+              </h1>
               <h2 className="mt-2 text-gray-600">
                 Welcome, {spotifyProfile?.displayName || 'User'}
               </h2>
+
+              {/* Button for connecting to Spotify if not linked */}
               {!spotifyProfile && (
                 <button
                   onClick={handleSpotifyConnect}
@@ -98,6 +108,7 @@ const PostLoginPage = () => {
               )}
             </div>
 
+            {/* Logout */}
             <button
               onClick={logout}
               className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
@@ -107,12 +118,14 @@ const PostLoginPage = () => {
             </button>
           </div>
 
+          {/* Error message */}
           {error && (
             <div className="bg-red-100 text-red-700 p-4 rounded mt-4">
               {error}
             </div>
           )}
 
+          {/* Display Spotify profile info if available */}
           {spotifyProfile && (
             <div className="mt-4 p-4 bg-gray-50 rounded-md">
               <p className="text-sm text-gray-600 font-mono break-all">
@@ -124,6 +137,7 @@ const PostLoginPage = () => {
           )}
         </div>
 
+        {/* Playlist Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {playlists.map((playlist) => (
             <div
@@ -151,6 +165,7 @@ const PostLoginPage = () => {
           ))}
         </div>
 
+        {/* Empty state */}
         {(!playlists || playlists.length === 0) && !error && (
           <div className="text-center py-12 text-gray-500">
             No playlists found

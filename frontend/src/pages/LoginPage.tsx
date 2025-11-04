@@ -8,6 +8,7 @@ const LoginPage = () => {
   const [isChecking, setIsChecking] = useState(true);
   const [userExists, setUserExists] = useState(false);
 
+  // 🔍 Check if the user already exists in the backend (Spotify authorized)
   useEffect(() => {
     const checkUserInBackend = async () => {
       if (!user?.id) {
@@ -22,7 +23,7 @@ const LoginPage = () => {
 
         if (res.status === 200 && res.data?.userId) {
           setUserExists(true);
-          setUser(res.data); // kullanıcıyı context'e de yaz
+          setUser(res.data); // Sync backend user data into context
         } else {
           setUserExists(false);
         }
@@ -37,23 +38,23 @@ const LoginPage = () => {
     checkUserInBackend();
   }, [user?.id, setUser]);
 
+  // 🎧 Trigger Spotify OAuth login flow
   const handleSpotifyLogin = async () => {
-  try {
-    const res = await axios.get("http://localhost:8080/api/auth/spotify/login");
-    if (res.data?.authorizeUrl) {
-      console.log("🎧 Redirecting to Spotify:", res.data.authorizeUrl);
-      window.location.href = res.data.authorizeUrl;
-    } else {
-      console.error("❌ No redirect URL received from backend:", res.data);
+    try {
+      const res = await axios.get("http://localhost:8080/api/auth/spotify/login");
+      if (res.data?.authorizeUrl) {
+        console.log("🎧 Redirecting to Spotify:", res.data.authorizeUrl);
+        // Redirect user to Spotify authorization URL
+        window.location.href = res.data.authorizeUrl;
+      } else {
+        console.error("❌ No redirect URL received from backend:", res.data);
+      }
+    } catch (err) {
+      console.error("❌ Spotify login failed:", err);
     }
-  } catch (err) {
-    console.error("❌ Spotify login failed:", err);
-  }
-};
+  };
 
-
-
-
+  // ⏳ Show loading state while checking backend
   if (isChecking) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -62,6 +63,7 @@ const LoginPage = () => {
     );
   }
 
+  // 🖼️ Render login UI
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-auto text-center">
@@ -72,6 +74,7 @@ const LoginPage = () => {
             : "Please sign in with your Spotify account"}
         </p>
 
+        {/* Show login button only if user not found in backend */}
         {!userExists && (
           <button
             onClick={handleSpotifyLogin}

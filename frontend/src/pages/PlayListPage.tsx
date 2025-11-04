@@ -13,6 +13,7 @@ export default function PlaylistPage() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // 🎧 Fetch user playlists from backend once the user is loaded
   useEffect(() => {
     if (!user?.id) return;
 
@@ -29,6 +30,7 @@ export default function PlaylistPage() {
       .finally(() => setLoading(false));
   }, [user?.id]);
 
+  // Move to the next page after selecting a playlist
   const handleNext = () => {
     if (selected) {
       const chosen = playlists.find((p) => p.id === selected);
@@ -36,11 +38,13 @@ export default function PlaylistPage() {
     }
   };
 
+  // Open detailed playlist view without triggering parent click
   const handleViewDetails = (playlistId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/playlist/${playlistId}`);
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-[#121212]">
@@ -57,9 +61,7 @@ export default function PlaylistPage() {
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-3">
             <Music className="w-10 h-10 text-[#1DB954]" />
-            <h1 className="text-4xl font-bold text-white">
-              Your Playlists
-            </h1>
+            <h1 className="text-4xl font-bold text-white">Your Playlists</h1>
           </div>
           <p className="text-gray-400 text-lg">
             Select a playlist to continue or view details
@@ -88,7 +90,7 @@ export default function PlaylistPage() {
                 onClick={() => setSelected(playlist.id)}
                 className="cursor-pointer bg-[#181818] hover:bg-[#282828] border border-transparent rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-200"
               >
-                {/* Image */}
+                {/* Playlist Image */}
                 <div className="relative aspect-square overflow-hidden">
                   {playlist.images?.[0] ? (
                     <>
@@ -105,7 +107,7 @@ export default function PlaylistPage() {
                     </div>
                   )}
 
-                  {/* Selection Indicator */}
+                  {/* Selection indicator when playlist is chosen */}
                   {selected === playlist.id && (
                     <div className="absolute top-4 right-4 bg-[#1DB954] rounded-full p-2 shadow-lg">
                       <PlayCircle className="w-6 h-6 text-black" />
@@ -113,7 +115,7 @@ export default function PlaylistPage() {
                   )}
                 </div>
 
-                {/* Info */}
+                {/* Playlist Info */}
                 <div className="p-5 flex-1 flex flex-col">
                   <h2 className="font-bold text-lg text-white mb-2 line-clamp-2 group-hover:text-[#1DB954] transition-colors">
                     {playlist.name}
@@ -155,12 +157,12 @@ export default function PlaylistPage() {
           </div>
         )}
 
-        {/* Footer */}
+        {/* Footer Navigation */}
         <div className="sticky bottom-0 bg-[#181818]/80 backdrop-blur-lg border-t border-[#282828] rounded-2xl p-6 mt-8">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <button
               className="flex items-center gap-2 px-6 py-3 bg-[#282828] hover:bg-[#333333] rounded-xl text-white transition-all duration-200"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate(-1)} // Go back to previous page
             >
               ← Back
             </button>

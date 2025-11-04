@@ -17,9 +17,11 @@ const SelectDevicePage = () => {
   const location = useLocation();
   const { selectedPlaylist } = location.state || {};
 
+  // Retrieve user info from local storage (set during login)
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const userId = storedUser?.id;
 
+  // 🔹 Fetch user’s available Spotify devices from backend
   useEffect(() => {
     const fetchDevices = async () => {
       try {
@@ -37,6 +39,7 @@ const SelectDevicePage = () => {
     fetchDevices();
   }, [userId]);
 
+  // Proceed to confirmation page with selected device + playlist
   const handleNext = () => {
     if (selectedDevice) {
       const selected = devices.find((d) => d.id === selectedDevice);
@@ -46,6 +49,7 @@ const SelectDevicePage = () => {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen text-gray-300 text-xl">
@@ -61,6 +65,7 @@ const SelectDevicePage = () => {
           Select a Spotify Device
         </h2>
 
+        {/* If no devices are found, show user a hint */}
         {devices.length === 0 ? (
           <p className="text-center text-gray-400">
             🎧 No active devices found. Make sure Spotify is open and playing
@@ -94,10 +99,11 @@ const SelectDevicePage = () => {
           </ul>
         )}
 
+        {/* Navigation buttons */}
         <div className="flex justify-between mt-8">
           <button
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(-1)} // Go back to previous step
           >
             ← Back
           </button>
@@ -114,6 +120,7 @@ const SelectDevicePage = () => {
           </button>
         </div>
 
+        {/* Step indicator */}
         <div className="mt-6 text-center text-gray-500 text-sm">
           Step 2 of 3 — <span className="text-green-400">Select Device</span>
         </div>

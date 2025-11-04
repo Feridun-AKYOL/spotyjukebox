@@ -6,19 +6,24 @@ export default function ConfirmPage() {
   const location = useLocation();
   const { selectedPlaylist, selectedDevice } = location.state || {};
 
+  // Retrieve logged-in user from localStorage (if available)
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const userId = storedUser?.id;
 
+  // Handle user confirmation and start playback on Spotify device
   const handleConfirm = async () => {
     if (!selectedPlaylist || !selectedDevice || !userId) return;
 
     try {
+      // Start Spotify playback on the selected device
       const res = await axios.post("http://localhost:8080/api/spotify/play", {
         userId,
         deviceId: selectedDevice.id,
         playlistId: selectedPlaylist.id,
       });
       console.log("✅ Playback started:", res.data);
+
+      // Redirect to success page, passing selection info
       navigate("/success", {
         state: { selectedPlaylist, selectedDevice },
       });
@@ -35,7 +40,7 @@ export default function ConfirmPage() {
           Confirm Your Selection
         </h2>
 
-        {/* Playlist Info */}
+        {/* Playlist Information */}
         <div className="bg-gray-800 rounded-xl p-4 mb-6 flex gap-4 items-center">
           {selectedPlaylist?.images?.[0] ? (
             <img
@@ -61,7 +66,7 @@ export default function ConfirmPage() {
           </div>
         </div>
 
-        {/* Device Info */}
+        {/* Device Information */}
         <div className="bg-gray-800 rounded-xl p-4 mb-8">
           <p className="text-sm text-gray-400">Selected Device:</p>
           <h4 className="text-lg font-medium mt-1 text-gray-100">
@@ -70,11 +75,11 @@ export default function ConfirmPage() {
           <p className="text-xs text-gray-500">{selectedDevice.type}</p>
         </div>
 
-        {/* Buttons */}
+        {/* Navigation Buttons */}
         <div className="flex justify-between">
           <button
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(-1)} // Go back to the previous step
           >
             ← Back
           </button>

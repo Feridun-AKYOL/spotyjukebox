@@ -13,12 +13,15 @@ export default function PlaylistDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize PlaylistService only if access token is available
   const playlistService = user?.access_token
     ? PlaylistService(user.access_token)
     : null;
 
+  // 🎧 Fetch playlist details on mount or when ID changes
   useEffect(() => {
     if (!playlistService || !id) return;
+
     playlistService
       .getPlaylist(id)
       .then((res) => {
@@ -31,12 +34,14 @@ export default function PlaylistDetailPage() {
       });
   }, [playlistService, id]);
 
+  // Format milliseconds into mm:ss
   const formatDuration = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // Calculate total playlist duration (in hours/minutes)
   const getTotalDuration = () => {
     if (!playlist?.tracks?.items) return "0:00";
     const totalMs = playlist.tracks.items.reduce(
@@ -48,6 +53,7 @@ export default function PlaylistDetailPage() {
     return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-[#121212]">
@@ -57,6 +63,7 @@ export default function PlaylistDetailPage() {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center p-6">
@@ -74,6 +81,7 @@ export default function PlaylistDetailPage() {
     );
   }
 
+  // Fallback when no playlist is returned
   if (!playlist) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
@@ -84,7 +92,9 @@ export default function PlaylistDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-[#B3B3B3]">
-      {/* Hero Section */}
+      {/* =======================
+          🎵 HERO SECTION
+         ======================= */}
       <div className="relative bg-gradient-to-b from-[#181818] to-transparent">
         <div className="max-w-7xl mx-auto px-6 py-12">
           {/* Back Button */}
@@ -98,7 +108,7 @@ export default function PlaylistDetailPage() {
 
           {/* Playlist Header */}
           <div className="flex flex-col md:flex-row gap-8 items-start md:items-end">
-            {/* Cover */}
+            {/* Cover Image */}
             <div className="flex-shrink-0">
               {playlist.images?.[0] ? (
                 <img
@@ -113,7 +123,7 @@ export default function PlaylistDetailPage() {
               )}
             </div>
 
-            {/* Info */}
+            {/* Playlist Info */}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-[#1DB954] uppercase tracking-wide mb-3">
                 Playlist
@@ -128,6 +138,7 @@ export default function PlaylistDetailPage() {
                 </p>
               )}
 
+              {/* Owner / Song Count / Duration */}
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-gray-400" />
@@ -145,10 +156,12 @@ export default function PlaylistDetailPage() {
         </div>
       </div>
 
-      {/* Tracks Section */}
+      {/* =======================
+          🎶 TRACK LIST
+         ======================= */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="bg-[#181818] rounded-2xl border border-[#282828] overflow-hidden">
-          {/* Header */}
+          {/* Header Row */}
           <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-4 border-b border-[#282828] text-sm font-semibold text-gray-400">
             <div className="w-12 text-center">#</div>
             <div>Title</div>
@@ -157,13 +170,14 @@ export default function PlaylistDetailPage() {
             </div>
           </div>
 
-          {/* Tracks */}
+          {/* Track Items */}
           <div className="divide-y divide-[#282828]/50">
             {playlist.tracks?.items?.map((item, idx) => (
               <div
                 key={idx}
                 className="grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-4 hover:bg-[#282828]/50 transition-colors group"
               >
+                {/* Index or Play Icon */}
                 <div className="w-12 flex items-center justify-center">
                   <span className="text-gray-500 group-hover:hidden">
                     {idx + 1}
@@ -171,6 +185,7 @@ export default function PlaylistDetailPage() {
                   <Play className="w-4 h-4 text-[#1DB954] hidden group-hover:block" />
                 </div>
 
+                {/* Song Details */}
                 <div className="min-w-0">
                   <p className="font-medium text-white truncate group-hover:text-[#1DB954] transition-colors">
                     {item.track?.name || "Unknown Track"}
@@ -181,6 +196,7 @@ export default function PlaylistDetailPage() {
                   </p>
                 </div>
 
+                {/* Duration */}
                 <div className="flex items-center text-sm text-gray-400">
                   {formatDuration(item.track?.duration_ms || 0)}
                 </div>
@@ -188,7 +204,7 @@ export default function PlaylistDetailPage() {
             ))}
           </div>
 
-          {/* Empty */}
+          {/* Empty Playlist Message */}
           {(!playlist.tracks?.items || playlist.tracks.items.length === 0) && (
             <div className="text-center py-16 text-gray-500">
               <Music className="w-16 h-16 mx-auto mb-4 text-gray-700" />
@@ -197,7 +213,9 @@ export default function PlaylistDetailPage() {
           )}
         </div>
 
-        {/* Stats */}
+        {/* =======================
+            📊 PLAYLIST STATS
+           ======================= */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
           <div className="bg-[#181818] border border-[#282828] rounded-xl p-6">
             <div className="flex items-center gap-3 mb-2">

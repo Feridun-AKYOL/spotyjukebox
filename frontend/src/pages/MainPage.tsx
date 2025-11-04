@@ -6,13 +6,13 @@ export default function MainPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Eğer client QR ile geldiyse (örnek: /?ownerId=123)
+  // Extract query parameter from URL (e.g., /?ownerId=123)
   const searchParams = new URLSearchParams(location.search);
   const ownerId = searchParams.get("ownerId");
 
   useEffect(() => {
     if (ownerId) {
-      // QR ile gelen misafir direkt client moduna yönlendirilir
+      // If accessed via QR (with ownerId), redirect directly to client mode
       navigate(`/client?ownerId=${ownerId}`);
     }
   }, [ownerId, navigate]);
@@ -82,6 +82,7 @@ export default function MainPage() {
         <h3 className="text-3xl font-bold mb-10 text-green-400">
           How It Works
         </h3>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl mx-auto text-left">
           <div className="bg-[#222] p-6 rounded-2xl border border-gray-700">
             <h4 className="text-green-400 text-lg font-semibold mb-2">
@@ -118,7 +119,8 @@ export default function MainPage() {
       {/* Footer */}
       <footer className="bg-[#111] border-t border-gray-800 py-6 text-center text-gray-500 text-sm">
         <p>
-          Built with ❤️ by <span className="text-green-400 font-medium">Bithub</span> · Powered by{" "}
+          Built with ❤️ by{" "}
+          <span className="text-green-400 font-medium">Bithub</span> · Powered by{" "}
           <span className="text-green-400">Spotify API</span>
         </p>
       </footer>
