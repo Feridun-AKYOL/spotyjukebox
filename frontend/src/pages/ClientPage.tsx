@@ -11,14 +11,15 @@ export default function ClientPage() {
     if (data) {
       console.log("✅ QR detected:", data);
       setScannedId(data);
-      // QR içeriğini doğrula (örnek: sadece ownerId içeriyor)
+
+      // Check if scanned QR content is a full URL or just an ID
       if (data.startsWith("http")) {
-        // QR doğrudan tam URL içeriyorsa
+        // Parse the URL to extract the "ownerId" query parameter
         const url = new URL(data);
         const ownerId = url.searchParams.get("ownerId");
         if (ownerId) navigate(`/client/session?ownerId=${ownerId}`);
       } else {
-        // sadece ID içeriyorsa
+        // If it's a plain ID, navigate directly
         navigate(`/client/session?ownerId=${data}`);
       }
     }
@@ -26,12 +27,13 @@ export default function ClientPage() {
 
   const handleError = (err: any) => {
     console.error("QR Error:", err);
+    // Disable camera UI when access is denied or device is unavailable
     setCameraAllowed(false);
   };
 
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center justify-center px-4">
-      {/* Başlık */}
+      {/* Page title */}
       <h1 className="text-3xl font-extrabold text-green-400 mb-3">
         Join the Jukebox
       </h1>
@@ -39,15 +41,15 @@ export default function ClientPage() {
         Point your camera at the QR code to join the live session 🎶
       </p>
 
-      {/* QR Kamera */}
+      {/* QR camera view */}
       {cameraAllowed ? (
         <div className="bg-gray-900 p-3 rounded-2xl border border-gray-700 shadow-lg">
           <QrScanner
-            delay={300}
+            delay={300} // scan interval in ms
             style={{ width: 300, height: 300 }}
             onError={handleError}
             onScan={handleScan}
-            constraints={{ facingMode: "environment" }}
+            constraints={{ facingMode: "environment" }} // use back camera if available
           />
         </div>
       ) : (
@@ -59,7 +61,7 @@ export default function ClientPage() {
         </div>
       )}
 
-      {/* QR Okunduğunda */}
+      {/* Display info while connecting after scan */}
       {scannedId && (
         <div className="mt-6 text-center">
           <h2 className="text-green-400 text-xl font-semibold">
@@ -69,7 +71,7 @@ export default function ClientPage() {
         </div>
       )}
 
-      {/* Alt bilgi */}
+      {/* Footer */}
       <div className="mt-12 text-gray-500 text-sm text-center">
         <p>Powered by Spotify API · Bithub Jukebox</p>
       </div>
