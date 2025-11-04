@@ -11,11 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * REST controller for managing Spotify devices and playback.
- * Provides endpoints to fetch available devices, control playback,
- * and retrieve the currently playing track.
- */
 @RestController
 @RequestMapping("/api/spotify")
 @CrossOrigin(origins = "http://127.0.0.1:3000")
@@ -25,12 +20,7 @@ public class SpotifyDeviceController {
     private final SpotifyService spotifyService;
     private final UserService userService;
 
-    /**
-     * Retrieves all available Spotify devices for the given user.
-     *
-     * @param userSpotifyId the Spotify user ID
-     * @return a list of available devices or an error response
-     */
+    //Retrieves all available Spotify devices for the given user.
     @GetMapping("/devices/{spotifyUserId}")
     public ResponseEntity<?> getDevices(@PathVariable("spotifyUserId") String userSpotifyId) {
         try {
@@ -46,13 +36,7 @@ public class SpotifyDeviceController {
         }
     }
 
-    /**
-     * Starts playback of a specific playlist on a chosen device.
-     * Also links or updates the playlist as the user's active Jukebox.
-     *
-     * @param body a JSON request containing userId, deviceId, and playlistId
-     * @return a status message indicating success or failure
-     */
+    //Starts playback of a specific playlist on a chosen device.
     @PostMapping("/play")
     public ResponseEntity<?> playPlaylist(@RequestBody Map<String, String> body) {
         try {
@@ -88,12 +72,7 @@ public class SpotifyDeviceController {
         }
     }
 
-    /**
-     * Retrieves the currently playing track for the specified Spotify user.
-     *
-     * @param ownerId the Spotify user ID
-     * @return the currently playing track data or an error response
-     */
+    //Retrieves the currently playing track for the specified Spotify user.
     @GetMapping("/now-playing/{ownerId}")
     public ResponseEntity<?> getNowPlaying(@PathVariable String ownerId) {
         try {

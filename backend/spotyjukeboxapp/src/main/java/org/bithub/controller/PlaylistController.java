@@ -13,10 +13,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 
-/**
- * REST controller responsible for handling Spotify-related API requests.
- * Provides endpoints for fetching user playlists, queues, and upcoming tracks.
- */
 @RestController
 @RequestMapping("/api/spotify")
 @RequiredArgsConstructor
@@ -26,13 +22,8 @@ public class PlaylistController {
     private final SpotifyRefreshService spotifyRefreshService;
     private final SpotifyService spotifyService;
 
-    /**
-     * Retrieves a user's Spotify playlists. If the access token has expired,
-     * it attempts to refresh it and retry the request.
-     *
-     * @param userId the internal user ID in the application
-     * @return a list of playlists or an appropriate error response
-     */
+
+    //Retrieves a user's Spotify playlists. If the access token has expired, it attempts to refresh it and retry the request.
     @GetMapping("/playlists/{userId}")
     public ResponseEntity<?> getUserPlaylists(@PathVariable String userId) {
         UserInfo user = userService.get(userId);
@@ -64,12 +55,7 @@ public class PlaylistController {
         }
     }
 
-    /**
-     * Sends a GET request to the Spotify API to retrieve a user's playlists.
-     *
-     * @param user the authenticated user containing a valid access token
-     * @return the Spotify API response body
-     */
+    // Sends a GET request to the Spotify API to retrieve a user's playlists.
     private ResponseEntity<?> fetchPlaylists(UserInfo user) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
@@ -87,12 +73,7 @@ public class PlaylistController {
         return ResponseEntity.ok(response.getBody());
     }
 
-    /**
-     * Retrieves the current playback queue for the specified Spotify user.
-     *
-     * @param ownerId the Spotify user ID
-     * @return the current queue data or an error response
-     */
+    // Retrieves the current playback queue for the specified Spotify user.
     @GetMapping("/queue/{ownerId}")
     public ResponseEntity<?> getQueue(@PathVariable String ownerId) {
         try {
@@ -107,12 +88,7 @@ public class PlaylistController {
         }
     }
 
-    /**
-     * Retrieves upcoming tracks in the user's Spotify playlist along with vote data.
-     *
-     * @param ownerId the Spotify user ID
-     * @return a list of upcoming tracks enriched with vote information
-     */
+     //Retrieves upcoming tracks in the user's Spotify playlist along with vote data.
     @GetMapping("/upcoming-tracks/{ownerId}")
     public ResponseEntity<?> getUpcomingTracks(@PathVariable String ownerId) {
         try {

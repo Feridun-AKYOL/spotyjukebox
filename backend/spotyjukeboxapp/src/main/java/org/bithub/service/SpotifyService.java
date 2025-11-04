@@ -17,39 +17,16 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * SpotifyService
- * ------------------------------------------------------------------------
- * Handles all Spotify API integrations, including:
- *   • Authentication and token refresh
- *   • Device management
- *   • Playlist creation, playback, and dynamic reordering
- *   • Jukebox functionality based on live user votes
- *
- * Collaborating Services:
- *   - {@link SpotifyRefreshService} for token refresh
- *   - {@link VoteService} for vote and cooldown tracking
- *   - {@link UserService} for saving Spotify user data
- *
- * This class is central to the dynamic Spotify Jukebox feature,
- * which reorders and plays songs based on audience votes.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SpotifyService {
 
-    // --------------------------------------------------------------------
-    // Dependencies
-    // --------------------------------------------------------------------
     private final SpotifyRefreshService spotifyRefreshService;
     private final VoteService voteService;
     private final RestTemplate restTemplate;
     private final UserService userService;
 
-    // --------------------------------------------------------------------
-    // Configuration
-    // --------------------------------------------------------------------
     @Value("${spotify.api.url}")
     private String spotifyApiUrl;
 
@@ -60,17 +37,8 @@ public class SpotifyService {
     private String clientSecret;
 
 
-    // --------------------------------------------------------------------
-    // AUTHENTICATION
-    // --------------------------------------------------------------------
 
-    /**
-     * Refreshes the Spotify access token for the given user.
-     * This is the primary implementation used throughout the service.
-     *
-     * @param user Spotify user with an existing refresh token.
-     * @return new access token string, or null if refresh failed.
-     */
+    // Refreshes the Spotify access token for the given user.
     public String refreshAccessToken(UserInfo user) {
         String url = "https://accounts.spotify.com/api/token";
 
@@ -113,12 +81,7 @@ public class SpotifyService {
     // DEVICES
     // --------------------------------------------------------------------
 
-    /**
-     * Fetches all available playback devices for a user.
-     *
-     * @param user Spotify user with valid access token.
-     * @return List of {@link SpotifyDevice} objects.
-     */
+    // Fetches all available playback devices for a user.
     public List<SpotifyDevice> getAvailableDevices(UserInfo user) {
         String url = spotifyApiUrl + "/me/player/devices";
 
@@ -152,12 +115,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Gets the currently active device for the user.
-     *
-     * @param user Spotify user
-     * @return Active device ID, or null if no device is active
-     */
+    //Gets the currently active device for the user.
     private String getActiveDeviceId(UserInfo user) {
         try {
             List<SpotifyDevice> devices = getAvailableDevices(user);
@@ -175,17 +133,7 @@ public class SpotifyService {
     }
 
 
-    // --------------------------------------------------------------------
-    // PLAYBACK
-    // --------------------------------------------------------------------
-
-    /**
-     * Starts playing the given playlist on the specified device.
-     *
-     * @param user       Spotify user.
-     * @param deviceId   Target device ID.
-     * @param playlistId Playlist to play.
-     */
+    //Starts playing the given playlist on the specified device.
     public void playOnDevice(UserInfo user, String deviceId, String playlistId) {
         String url = spotifyApiUrl + "/me/player/play?device_id=" + deviceId;
 
@@ -211,16 +159,7 @@ public class SpotifyService {
     }
 
 
-    // --------------------------------------------------------------------
-    // NOW PLAYING / QUEUE
-    // --------------------------------------------------------------------
-
-    /**
-     * Retrieves the currently playing track.
-     *
-     * @param user Spotify user.
-     * @return Response map from Spotify API or {"is_playing": false} if none.
-     */
+    // Retrieves the currently playing track.
     public Map<String, Object> getNowPlaying(UserInfo user) {
         String url = spotifyApiUrl + "/me/player/currently-playing";
 
@@ -265,12 +204,7 @@ public class SpotifyService {
 
 
 
-    /**
-     * Retrieves and sorts the Spotify queue based on votes and cooldowns.
-     *
-     * @param user Spotify user.
-     * @return Map containing the queue, ordered by votes.
-     */
+    // Retrieves and sorts the Spotify queue based on votes and cooldowns.
     public Map<String, Object> getQueue(UserInfo user) {
         String url = spotifyApiUrl + "/me/player/queue";
 
@@ -320,16 +254,7 @@ public class SpotifyService {
     }
 
 
-    // --------------------------------------------------------------------
-    // PLAYLIST MANAGEMENT
-    // --------------------------------------------------------------------
-
-    /**
-     * Creates a new private "Jukebox" playlist for the user.
-     *
-     * @param user Spotify user.
-     * @return The created playlist ID.
-     */
+    // Creates a new private "Jukebox" playlist for the user.
     public String createJukeboxPlaylist(UserInfo user) {
         String url = spotifyApiUrl + "/users/" + user.getSpotifyUserId() + "/playlists";
 
@@ -365,13 +290,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Fetches the tracks from a given Spotify playlist.
-     *
-     * @param user       Spotify user.
-     * @param playlistId Playlist ID.
-     * @return List of track maps, each containing Spotify track metadata.
-     */
+    // Fetches the tracks from a given Spotify playlist.
     public List<Map<String, Object>> getPlaylistTracks(UserInfo user, String playlistId) {
         String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
 
@@ -398,13 +317,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Legacy method name - delegates to getUserPlaylists()
-     * Kept for backwards compatibility with existing code.
-     *
-     * @return List of user playlists
-     * @deprecated Use {@link #getUserPlaylists()} instead
-     */
+    // Legacy method name - delegates to getUserPlaylists(). Kept for backwards compatibility with existing code.
     @Deprecated
     public List<SpotifyPlaylist> getUserPlaylists() {
         try {
@@ -416,16 +329,7 @@ public class SpotifyService {
     }
 
 
-    // --------------------------------------------------------------------
-    // PLAYLIST REORDERING & UPDATES
-    // --------------------------------------------------------------------
-
-    /**
-     * Updates the user's Jukebox playlist order based on current votes.
-     * Keeps the currently playing song at the top.
-     *
-     * @param user Spotify user whose Jukebox playlist will be updated.
-     */
+    //Updates the user's Jukebox playlist order based on current votes. Keeps the currently playing song at the top.
     public void updateJukeboxPlaylist(UserInfo user) {
         try {
             String playlistId = user.getJukeboxPlaylistId();
@@ -473,13 +377,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Replaces the playlist content with a new list of tracks, keeping Spotify's batch limit (100 tracks/request).
-     *
-     * @param user       Spotify user.
-     * @param playlistId Target playlist ID.
-     * @param uris       Ordered list of Spotify track URIs.
-     */
+    // Replaces the playlist content with a new list of tracks, keeping Spotify's batch limit (100 tracks/request).
     private void replacePlaylistTracks(UserInfo user, String playlistId, List<String> uris) {
         String url = spotifyApiUrl + "/playlists/" + playlistId + "/tracks";
 
@@ -510,13 +408,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Sorts playlist tracks based on active votes and cooldown rules.
-     *
-     * @param user   Spotify user.
-     * @param tracks List of playlist tracks.
-     * @return Ordered list of Spotify track URIs.
-     */
+    // Sorts playlist tracks based on active votes and cooldown rules.
     private List<String> sortPlaylistByVotes(UserInfo user, List<Map<String, Object>> tracks) {
         Map<String, Long> votes = voteService.getActiveVotes(user.getSpotifyUserId());
         List<String> cooldownTracks = voteService.getCooldownTracks(user.getSpotifyUserId());
@@ -571,17 +463,7 @@ public class SpotifyService {
     }
 
 
-    // --------------------------------------------------------------------
-    // JUKEBOX & QUEUE MANAGEMENT
-    // --------------------------------------------------------------------
-
-    /**
-     * Plays the user's Jukebox playlist on the selected device.
-     * Automatically creates one if it doesn't exist.
-     *
-     * @param user     Spotify user.
-     * @param deviceId Target Spotify device ID.
-     */
+    // Plays the user's Jukebox playlist on the selected device. Automatically creates one if it doesn't exist.
     public void playJukeboxPlaylist(UserInfo user, String deviceId) {
         String playlistId = user.getJukeboxPlaylistId();
 
@@ -594,11 +476,7 @@ public class SpotifyService {
         log.info("🎵 Started Jukebox playlist on device {}", deviceId);
     }
 
-    /**
-     * Adds the top-voted track (not in cooldown) to the user's Spotify queue.
-     *
-     * @param user Spotify user.
-     */
+    // Adds the top-voted track (not in cooldown) to the user's Spotify queue.
     public void reorderQueueByVotes(UserInfo user) {
         try {
             String playlistId = user.getJukeboxPlaylistId();
@@ -652,12 +530,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Adds a track to the user's Spotify playback queue.
-     *
-     * @param user    Spotify user.
-     * @param trackId Spotify track ID.
-     */
+    // Adds a track to the user's Spotify playback queue.
     private void addToQueue(UserInfo user, String trackId) {
         String url = spotifyApiUrl + "/me/player/queue?uri=spotify:track:" + trackId;
 
@@ -674,13 +547,7 @@ public class SpotifyService {
         }
     }
 
-    /**
-     * Returns the list of upcoming tracks from the user's playlist
-     * enriched with live vote counts — for client display.
-     *
-     * @param user Spotify user.
-     * @return List of upcoming tracks with their vote data.
-     */
+    // Returns the list of upcoming tracks from the user's playlist enriched with live vote counts — for client display.
     public List<Map<String, Object>> getUpcomingTracksWithVotes(UserInfo user) {
         try {
             String playlistId = user.getJukeboxPlaylistId();

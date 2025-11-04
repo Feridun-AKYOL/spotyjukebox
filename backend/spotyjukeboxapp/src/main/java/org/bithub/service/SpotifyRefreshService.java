@@ -12,11 +12,6 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * Service responsible for refreshing expired Spotify access tokens
- * using stored refresh tokens. Updates the user record in the database
- * with new token details.
- */
 @Service
 @RequiredArgsConstructor
 public class SpotifyRefreshService {
@@ -29,13 +24,6 @@ public class SpotifyRefreshService {
     @Value("${spotify.client-secret}")
     private String clientSecret;
 
-    /**
-     * Requests a new access token from Spotify using the user's refresh token
-     * and updates the corresponding {@link UserInfo} entity in the database.
-     *
-     * @param user the user whose access token needs to be refreshed
-     * @return the updated {@link UserInfo} object, or {@code null} if the refresh fails
-     */
     public UserInfo refreshAccessToken(UserInfo user) {
         try {
             RestTemplate restTemplate = new RestTemplate();

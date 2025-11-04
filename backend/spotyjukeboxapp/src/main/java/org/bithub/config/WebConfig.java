@@ -6,20 +6,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Global CORS configuration for the application.
- * Defines allowed origins, methods, and headers to enable
- * communication between the backend and local frontend clients.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    /**
-     * Configures Cross-Origin Resource Sharing (CORS) settings.
-     * Allows requests from local development environments and
-     * supports standard HTTP methods.
-     *
-     * @param registry the CORS registry to configure
-     */
-    @Override
+   @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOrigins(

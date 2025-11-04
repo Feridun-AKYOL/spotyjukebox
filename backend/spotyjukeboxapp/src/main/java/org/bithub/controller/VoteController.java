@@ -10,10 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * REST controller for managing voting actions in the Jukebox system.
- * Handles track voting, vote broadcasting, and resetting votes when a track is played.
- */
 @RestController
 @RequestMapping("/api/jukebox")
 @CrossOrigin(
@@ -26,13 +22,7 @@ public class VoteController {
     private final VoteService voteService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    /**
-     * Registers a vote for a specific track and broadcasts the updated vote count
-     * to all connected clients via WebSocket.
-     *
-     * @param payload the request body containing ownerId, trackId, and optionally clientId
-     * @return the created {@link Vote} object or an error message
-     */
+    // Registers a vote for a specific track and broadcasts the updated vote count to all connected clients via WebSocket.
     @PostMapping("/vote")
     public ResponseEntity<?> vote(@RequestBody Map<String, String> payload) {
         try {
@@ -52,12 +42,7 @@ public class VoteController {
         }
     }
 
-    /**
-     * Resets votes for a track after it has been played.
-     *
-     * @param payload the request body containing ownerId and trackId
-     * @return a confirmation message or an error response
-     */
+    //Resets votes for a track after it has been played.
     @PostMapping("/played")
     public ResponseEntity<?> trackPlayed(@RequestBody Map<String, String> payload) {
         try {
@@ -72,12 +57,7 @@ public class VoteController {
         }
     }
 
-    /**
-     * Retrieves the current active votes for a given owner (Jukebox session).
-     *
-     * @param ownerId the Spotify owner ID
-     * @return a map of track IDs and their corresponding vote counts
-     */
+    // Retrieves the current active votes for a given owner (Jukebox session).
     @GetMapping("/votes/{ownerId}")
     public ResponseEntity<?> getVotes(@PathVariable String ownerId) {
         return ResponseEntity.ok(voteService.getActiveVotes(ownerId));

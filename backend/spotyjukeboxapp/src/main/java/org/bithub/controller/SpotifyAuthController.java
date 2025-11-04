@@ -14,10 +14,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 
-/**
- * REST controller for handling Spotify authentication and user data.
- * Manages OAuth2 login flow, token exchange, and user synchronization.
- */
 @RestController
 @RequestMapping("/api/auth/spotify")
 @RequiredArgsConstructor
@@ -34,14 +30,8 @@ public class SpotifyAuthController {
     @Value("${spotify.redirect-uri}")
     private String redirectUri;
 
-    /**
-     * Handles the Spotify callback after user authorization.
-     * Exchanges the authorization code for tokens, retrieves user profile data,
-     * and saves or updates the user in the local database.
-     *
-     * @param body a map containing the Spotify authorization code
-     * @return a JSON response with the user ID and access token
-     */
+
+    //Handles the Spotify callback after user authorization.
     @PostMapping("/callback")
     public ResponseEntity<?> handleSpotifyCallback(@RequestBody Map<String, String> body) {
         String code = body.get("code");
@@ -124,12 +114,6 @@ public class SpotifyAuthController {
         }
     }
 
-    /**
-     * Generates the Spotify authorization URL with required scopes.
-     * Used to initiate the user login process.
-     *
-     * @return a JSON object containing the Spotify authorization URL
-     */
     @GetMapping("/login")
     public ResponseEntity<?> redirectToSpotifyAuth() {
         if (clientId == null || redirectUri == null) {
@@ -157,12 +141,8 @@ public class SpotifyAuthController {
         return ResponseEntity.ok(Map.of("authorizeUrl", authorizeUrl));
     }
 
-    /**
-     * Retrieves stored Spotify user information from the database.
-     *
-     * @param userId the internal user ID in the application
-     * @return a JSON response containing user details
-     */
+
+    //Retrieves stored Spotify user information from the database.
     @GetMapping("/me/{userId}")
     public ResponseEntity<?> getSpotifyUser(@PathVariable String userId) {
         UserInfo user = userService.get(userId);
