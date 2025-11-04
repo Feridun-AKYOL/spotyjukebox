@@ -1,6 +1,7 @@
 package org.bithub.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bithub.model.UserInfo;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QueueSchedulerService {
 
     private final UserService userService;
@@ -51,7 +53,6 @@ public class QueueSchedulerService {
                 }
             }
 
-            System.out.println("✅ Jukebox playlist update cycle completed successfully.");
 
         } catch (Exception e) {
             System.err.println("❌ Jukebox scheduler encountered an unexpected error:");
