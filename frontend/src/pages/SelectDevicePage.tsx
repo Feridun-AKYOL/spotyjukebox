@@ -10,6 +10,9 @@ interface Device {
 }
 
 const SelectDevicePage = () => {
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,7 @@ const SelectDevicePage = () => {
       try {
         if (!userId) return;
         const res = await axios.get(
-          `http://localhost:8080/api/spotify/devices/${userId}`
+          `${API_BASE_URL}/api/spotify/devices/${userId}`
         );
         setDevices(res.data);
       } catch (err) {
@@ -37,7 +40,7 @@ const SelectDevicePage = () => {
       }
     };
     fetchDevices();
-  }, [userId]);
+  }, [userId, API_BASE_URL]);
 
   // Proceed to confirmation page with selected device + playlist
   const handleNext = () => {

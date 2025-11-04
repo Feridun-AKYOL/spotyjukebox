@@ -14,6 +14,9 @@ type UserInfo = {
 };
 
 export default function UserInfoPage() {
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const { user } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [data, setData] = useState<UserInfo | null>(null);
@@ -44,7 +47,7 @@ export default function UserInfoPage() {
     setData(null);
 
     try {
-      const url = `http://localhost:8080/user/get-by-email/${encodeURIComponent(email)}`;
+      const url = `${API_BASE_URL}/user/get-by-email/${encodeURIComponent(email)}`;
       console.log("📡 Request URL:", url);
 
       const res = await fetch(url);

@@ -4,6 +4,9 @@ import axios from "axios";
 import { AuthContext } from "@/context/AuthProvider";
 
 export default function SpotifyCallbackPage() {
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const navigate = useNavigate();
   const { setUser } = useContext(AuthContext);
   const hasRun = useRef(false); // Prevents useEffect from running twice (React strict mode)
@@ -25,7 +28,7 @@ export default function SpotifyCallbackPage() {
 
       try {
         // Exchange authorization code for access token
-        const res = await axios.post("http://localhost:8080/api/auth/spotify/callback", {
+        const res = await axios.post(`${API_BASE_URL}/api/auth/spotify/callback`, {
           code,
         });
 
@@ -38,6 +41,7 @@ export default function SpotifyCallbackPage() {
           displayName: displayName || "Unknown",
           access_token: accessToken,
           spotifyLinked: true,
+          jukeboxPlaylistId: "",
         });
 
         // Clean URL (remove code param) and redirect to playlists
@@ -50,7 +54,7 @@ export default function SpotifyCallbackPage() {
     };
 
     linkSpotify();
-  }, [navigate, setUser]);
+  }, [navigate, setUser, API_BASE_URL]);
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-green-50 to-emerald-100">

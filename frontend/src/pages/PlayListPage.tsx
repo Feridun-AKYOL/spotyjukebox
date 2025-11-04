@@ -6,6 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { Music, User, PlayCircle, Info } from "lucide-react";
 
 export default function PlaylistPage() {
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const { user } = useContext(AuthContext);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +21,7 @@ export default function PlaylistPage() {
     if (!user?.id) return;
 
     axios
-      .get(`http://localhost:8080/api/spotify/playlists/${user.id}`)
+      .get(`${API_BASE_URL}/api/spotify/playlists/${user.id}`)
       .then((res) => {
         console.log("🎵 Spotify playlists:", res.data);
         setPlaylists(res.data.items || []);
@@ -28,7 +31,7 @@ export default function PlaylistPage() {
         setError("Could not load playlists");
       })
       .finally(() => setLoading(false));
-  }, [user?.id]);
+  }, [user?.id, API_BASE_URL]);
 
   // Move to the next page after selecting a playlist
   const handleNext = () => {

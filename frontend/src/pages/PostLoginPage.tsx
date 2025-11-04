@@ -5,6 +5,9 @@ import axios from 'axios';
 import { Playlist } from '@/models/PlayslistModels';
 
 const PostLoginPage = () => {
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const { user, logout } = useContext(AuthContext);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -24,7 +27,7 @@ const PostLoginPage = () => {
 
         // Retrieve user’s Spotify profile from backend
         const profileRes = await axios.get(
-          `http://localhost:8080/api/auth/spotify/me/${user.id}`
+          `${API_BASE_URL}/api/auth/spotify/me/${user.id}`
         );
 
         console.log('✅ Backend profile:', profileRes.data);
@@ -38,7 +41,7 @@ const PostLoginPage = () => {
     };
 
     loadUserProfile();
-  }, [user?.id]);
+  }, [user?.id, API_BASE_URL]);
 
   // 🔹 Fetch user playlists from backend
   useEffect(() => {
@@ -47,7 +50,7 @@ const PostLoginPage = () => {
 
       try {
         const res = await axios.get(
-          `http://localhost:8080/api/playlists/${user.id}`
+          `${API_BASE_URL}/api/playlists/${user.id}`
         );
         console.log('🎵 Playlists from backend:', res.data);
         setPlaylists(res.data.items || []);
@@ -58,16 +61,17 @@ const PostLoginPage = () => {
     };
 
     loadPlaylists();
-  }, [user?.id]);
+  }, [user?.id, API_BASE_URL]);
 
   // 🎧 Redirect user to Spotify OAuth authorization flow
   const handleSpotifyConnect = () => {
     const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
     const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-    const scopes =
-      'user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public';
+    const scopes =import.meta.env.VITE_SPOTIFY_SCOPES;
 
-    const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+    const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
+
+    const url = `${SPOTIFY_AUTH_URL}?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&scope=${encodeURIComponent(scopes)}`;
 
