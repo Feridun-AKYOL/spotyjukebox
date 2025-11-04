@@ -15,7 +15,6 @@ interface Track {
 }
 
 export default function ClientSessionPage() {
-
   const [params] = useSearchParams();
   const ownerId = params.get("ownerId");
 
@@ -27,7 +26,7 @@ export default function ClientSessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
 
-  // 🔹 Benzersiz ama kalıcı clientId üret
+  // Generate persistent unique client ID (stored in localStorage)
   const [clientId] = useState(() => {
     let existing = localStorage.getItem("clientId");
     if (!existing) {
@@ -37,7 +36,7 @@ export default function ClientSessionPage() {
     return existing;
   });
 
-  // 📡 WebSocket bağlantısı — anlık oy güncellemesi için
+  // 📡 WebSocket connection for real-time vote updates
   useEffect(() => {
     if (!ownerId) return;
 
@@ -46,6 +45,7 @@ export default function ClientSessionPage() {
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
       onConnect: () => {
+        // Subscribe to session-specific topic
         client.subscribe(`/topic/votes/${ownerId}`, (message) => {
           const updated = JSON.parse(message.body);
           setVotes(updated);
@@ -56,10 +56,10 @@ export default function ClientSessionPage() {
     client.activate();
     return () => {
       void client.deactivate();
-    }
+    };
   }, [ownerId]);
 
-  // 🎵 Şu an çalan şarkı + kuyruk çekimi
+  // 🎵 Fetch now-playing track + queue periodically
   useEffect(() => {
     if (!ownerId) {
       setError("No session found. Please scan a valid QR code.");
@@ -77,11 +77,11 @@ export default function ClientSessionPage() {
         const currentTrackId = nowPlayingRef.current?.id;
         const currentTrackName = nowPlayingRef.current?.name;
 
-        // 🎯 Yeni şarkı başladıysa
+        // Detect song change (backend reset + local cleanup)
         if (currentTrackId && currentTrackId !== item.id) {
           console.log(`🎵 Track changed from ${currentTrackName} to ${item.name}`);
 
-          // ✅ ESKİ şarkının (şimdi biten) oylarını backend'de sıfırla
+          // Inform backend to reset votes for previous track
           try {
             await axios.post("http://127.0.0.1:8080/api/jukebox/played", {
               ownerId,
@@ -92,18 +92,18 @@ export default function ClientSessionPage() {
             console.warn("⚠️ Failed to reset votes:", err);
           }
 
-          // ✅ Frontend'de sadece o şarkının oyunu sil
+          // Remove finished track’s votes locally
           setVotes((prev) => {
             const newVotes = { ...prev };
             delete newVotes[currentTrackId];
             return newVotes;
           });
 
-          // ✅ Çalan şarkıyı kuyruktan çıkar
+          // Remove finished track from queue
           setUpNext((prev) => prev.filter((t) => t.id !== currentTrackId));
         }
 
-        // 🎧 Güncel şarkıyı güncelle (state + ref)
+        // Update current track (state + ref)
         const newTrack = {
           id: item.id,
           name: item.name,
@@ -122,11 +122,10 @@ export default function ClientSessionPage() {
 
     const fetchQueue = async () => {
       try {
-        // ✅ Playlist şarkılarını oy ve cooldown bilgisiyle çek
+        // Retrieve playlist with vote & cooldown info
         const res = await axios.get(
           `http://localhost:8080/api/spotify/upcoming-tracks/${ownerId}`
         );
-        console.log(res);
         const queue = res.data.queue || [];
 
         setUpNext(
@@ -148,7 +147,7 @@ export default function ClientSessionPage() {
     fetchNowPlaying();
     fetchQueue();
 
-    // 🔄 Her 10 saniyede bir yenile
+    // Refresh data every 10 seconds
     const interval = setInterval(() => {
       fetchNowPlaying();
       fetchQueue();
@@ -157,7 +156,7 @@ export default function ClientSessionPage() {
     return () => clearInterval(interval);
   }, [ownerId]);
 
-  // 🗳 Oy gönder
+  // 🗳 Send vote request to backend
   const handleVote = async (trackId: string) => {
     if (!ownerId) return;
     setVoted(trackId);
@@ -175,6 +174,7 @@ export default function ClientSessionPage() {
         "Vote failed";
       console.warn("Vote error:", message);
 
+      // Handle duplicate or failed votes
       if (message.includes("already voted")) {
         setVoteError("⚠️ You already voted for this song.");
       } else {
@@ -185,6 +185,7 @@ export default function ClientSessionPage() {
     }
   };
 
+  // Auto-clear vote error after a few seconds
   useEffect(() => {
     if (voteError) {
       const timer = setTimeout(() => setVoteError(null), 3000);
@@ -192,7 +193,7 @@ export default function ClientSessionPage() {
     }
   }, [voteError]);
 
-  // 🎧 Henüz şarkı yüklenmediyse
+  // 🎧 Show loading screen before data arrives
   if (!nowPlaying)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#121212] text-gray-400">
@@ -203,20 +204,22 @@ export default function ClientSessionPage() {
   // 🖼️ UI render
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200 flex flex-col items-center px-4 py-8">
-      {/* ⚠️ Error Banner*/}
+      {/* ⚠️ Error Banner */}
       {voteError && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2
-                   bg-yellow-500/20 border border-yellow-400 
-                   text-yellow-300 text-sm px-4 py-2 rounded-lg 
-                   text-center shadow-lg backdrop-blur-md 
-                   animate-pulse transition-opacity duration-500 
-                   z-50">
+        <div
+          className="fixed top-4 left-1/2 transform -translate-x-1/2
+                     bg-yellow-500/20 border border-yellow-400 
+                     text-yellow-300 text-sm px-4 py-2 rounded-lg 
+                     text-center shadow-lg backdrop-blur-md 
+                     animate-pulse transition-opacity duration-500 
+                     z-50"
+        >
           {voteError} <br /> {error}
         </div>
       )}
 
       <div className="text-center mb-10">
-        {/* NOW PLAYING */}
+        {/* NOW PLAYING SECTION */}
         <h1 className="text-3xl font-bold text-green-400 mb-4">
           Now Playing 🎵
         </h1>
@@ -231,7 +234,7 @@ export default function ClientSessionPage() {
         </div>
       </div>
 
-      {/* UP NEXT */}
+      {/* UP NEXT SECTION */}
       <div className="w-full max-w-2xl">
         <h3 className="text-xl font-semibold text-green-400 mb-4 text-center">
           Up Next
@@ -245,8 +248,8 @@ export default function ClientSessionPage() {
               <div
                 key={track.id}
                 className={`bg-[#181818] p-4 rounded-xl border transition-all duration-300 ${
-                  track.inCooldown 
-                    ? "opacity-60 border-gray-700" 
+                  track.inCooldown
+                    ? "opacity-60 border-gray-700"
                     : voted === track.id
                     ? "border-green-500 ring-1 ring-green-400 hover:scale-105"
                     : "border-gray-800 hover:scale-105"
@@ -260,6 +263,7 @@ export default function ClientSessionPage() {
                       track.inCooldown ? "grayscale" : ""
                     }`}
                   />
+                  {/* Cooldown badge for recently played tracks */}
                   {track.inCooldown && (
                     <div className="absolute top-2 right-2 bg-orange-500/90 text-xs font-semibold px-2 py-1 rounded-full text-white backdrop-blur-sm">
                       🕐 Cooldown
@@ -268,17 +272,20 @@ export default function ClientSessionPage() {
                 </div>
                 <h4 className="font-semibold">{track.name}</h4>
                 <p className="text-gray-400 text-sm mb-3">{track.artist}</p>
-                
+
                 {track.inCooldown ? (
+                  // Display cooldown info (instead of vote button)
                   <div className="text-center py-2 bg-gray-800/50 rounded-lg">
                     <p className="text-xs text-orange-400 font-medium">
                       Recently played
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Available in {track.cooldownRemaining} song{track.cooldownRemaining !== 1 ? "s" : ""}
+                      Available in {track.cooldownRemaining} song
+                      {track.cooldownRemaining !== 1 ? "s" : ""}
                     </p>
                   </div>
                 ) : (
+                  // Vote button for active tracks
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">
                       {votes[track.id] ?? track.votes ?? 0} votes
